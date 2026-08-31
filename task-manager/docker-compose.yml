@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: taskmanager
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-taskmanager}
+      POSTGRES_DB: taskmanager
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U taskmanager']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://taskmanager:${POSTGRES_PASSWORD:-taskmanager}@db:5432/taskmanager?schema=public
+      JWT_SECRET: ${JWT_SECRET:?задайте JWT_SECRET в .env}
+      CRON_SECRET: ${CRON_SECRET:?задайте CRON_SECRET в .env}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Moscow}
+      DAILY_REPORT_TIME: ${DAILY_REPORT_TIME:-18:00}
+      UPLOAD_DIR: /data/uploads
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-20}
+    ports:
+      - '3000:3000'
+    volumes:
+      - uploads:/data/uploads
+    # Миграции применяются при старте, затем поднимается сервер
+    command: sh -c "npx prisma migrate deploy && npm run start"
+
+  worker:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      APP_URL: http://app:3000
+      CRON_SECRET: ${CRON_SECRET:?задайте CRON_SECRET в .env}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Moscow}
+      DAILY_REPORT_TIME: ${DAILY_REPORT_TIME:-18:00}
+    command: npm run worker
+
+volumes:
+  pgdata:
+  uploads:

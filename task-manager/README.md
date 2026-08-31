@@ -1,0 +1,198 @@
+# Task Manager — отдел бухгалтерии
+
+Внутренний менеджер задач: постановка задач по цепочке «заказчик → исполнитель → принимающий»,
+контроль сроков с автоматическим переносом невыполненного и ежедневная сводка руководителю.
+
+Стек: **Next.js 15 (App Router, TypeScript) + PostgreSQL + Prisma + Tailwind CSS**.
+Авторизация — JWT в httpOnly-cookie. Планировщик — отдельный процесс на `node-cron`,
+дёргающий защищённые эндпоинты `/api/cron/*`.
+
+---
+
+## 1. Быстрый запуск локально
+
+Нужны Node.js 20+ и PostgreSQL 14+ (или Docker).
+
+```bash
+cd task-manager
+npm install
+cp .env.example .env          # затем отредактируйте .env, см. раздел 2
+npx prisma migrate deploy     # создать таблицы
+npm run db:seed               # демо-данные: отделы, сотрудники, задачи
+npm run dev                   # http://localhost:3000
+```
+
+В отдельном терминале — планировщик (перенос задач, напоминания, отчёты):
+
+```bash
+npm run worker            # по расписанию
+npm run worker -- --now   # плюс немедленный прогон всех джобов
+```
+
+Прод-режим: `npm run build && npm run start`.
+
+### Через Docker
+
+```bash
+cp .env.example .env        # задайте JWT_SECRET и CRON_SECRET
+docker compose up -d --build
+docker compose exec app npm run db:seed   # опционально, демо-данные
+```
+
+Поднимаются три контейнера: `db` (PostgreSQL), `app` (Next.js, миграции применяются при старте)
+и `worker` (планировщик). Вложения лежат в volume `uploads`.
+
+### Демо-учётки (после `npm run db:seed`)
+
+| Роль | Логин | Что видит |
+|---|---|---|
+| Администратор | `admin@company.ru` | сотрудники, отделы, настройки |
+| Директор | `director@company.ru` | все задачи и отчёты по компании |
+| Главный бухгалтер | `chief@company.ru` | отдел «Бухгалтерия» + отчёты по нему |
+| Главный бухгалтер | `chief2@company.ru` | отдел «Расчётный отдел» |
+| Бухгалтер | `accountant1@company.ru` | только свои задачи |
+| Бухгалтер | `accountant2@company.ru` | только свои задачи |
+| Оператор | `operator1@company.ru` | только свои задачи |
+| Оператор | `operator2@company.ru` | только свои задачи |
+
+Пароль у всех — `Password123!` (переопределяется `SEED_DEFAULT_PASSWORD`).
+
+---
+
+## 2. Переменные окружения
+
+| Переменная | Назначение |
+|---|---|
+| `DATABASE_URL` | строка подключения к PostgreSQL |
+| `JWT_SECRET` | секрет подписи сессий, ≥32 символов (`openssl rand -base64 48`) |
+| `SESSION_TTL_HOURS` | время жизни сессии, по умолчанию 12 |
+| `UPLOAD_DIR` | каталог вложений (по умолчанию `./uploads`) |
+| `MAX_UPLOAD_MB` | лимит размера файла, по умолчанию 20 |
+| `APP_TIMEZONE` | рабочий часовой пояс — в нём считаются сутки, дедлайны и отчёты |
+| `DAILY_REPORT_TIME` | время ежедневной сводки, `ЧЧ:ММ` |
+| `CRON_SECRET` | секрет для вызова `/api/cron/*` |
+| `APP_URL` | адрес приложения для воркера (по умолчанию `http://localhost:3000`) |
+
+Часовой пояс, время отчёта и окно напоминаний дополнительно меняются в интерфейсе
+(«Настройки», доступно администратору) — значения из БД имеют приоритет над `.env`.
+Воркер читает время отчёта из `.env`, поэтому после смены времени в UI его нужно перезапустить.
+
+---
+
+## 3. Роли и права
+
+| Действие | Администратор | Директор | Главный бухгалтер | Бухгалтер/оператор |
+|---|---|---|---|---|
+| Видит задачи | — | все | свой отдел + подчинённые | где он исполнитель / заказчик / принимающий |
+| Создаёт задачу | — | любому | себе и подчинённым | только себе |
+| Редактирует | — | созданные им | в своём отделе | свои |
+| Отмечает выполнение | — | — | свои и подчинённых | свои |
+| Принимает результат | — | если назначен принимающим | если назначен принимающим | если назначен принимающим |
+| Отменяет / удаляет | — | созданные им | в своём отделе | отменяет свои |
+| Отчёты | — | по всей компании | по своему отделу | — |
+| Пользователи, отделы, настройки | да | — | — | — |
+
+Проверки прав живут на сервере, в `src/lib/permissions.ts` — интерфейс лишь прячет недоступные
+кнопки. Роль читается из БД при каждом запросе, поэтому отключение сотрудника или смена роли
+действуют немедленно, не дожидаясь истечения токена.
+
+---
+
+## 4. Схема базы данных
+
+```
+departments   id, name, head_id → users
+users         id, email, password_hash, full_name, position, role,
+              department_id, manager_id, is_active
+tasks         id, title, description,
+              assignee_id (исполнитель), customer_id (заказчик),
+              acceptor_id (принимающий, nullable), created_by_id, department_id,
+              priority, status, deadline,
+              is_overdue, overdue_since, carry_over_days,
+              submitted_at, accepted_at, completed_at, cancelled_at
+task_notes    id, task_id, author_id, body            — заметки по ходу работы
+attachments   id, task_id, uploaded_by_id, original_name, stored_path, mime_type, size_bytes
+task_activity id, task_id, actor_id, action, details  — аудит изменений
+notifications id, user_id, type, task_id, title, body, is_read
+reports       id, period_type, period_start, period_end, department_id, recipient_id, totals
+report_items  id, report_id, user_id, planned, completed, pending, overdue,
+              carried_over, unfinished (jsonb)
+app_settings  key, value
+```
+
+Решения, которые стоит знать при доработке:
+
+* **«Просрочено» — не статус, а состояние.** Статусы: `IN_PROGRESS`, `PENDING_ACCEPTANCE`,
+  `DONE`, `CANCELLED`. Просрочка вычисляется как `дедлайн < сейчас AND задача не закрыта`;
+  поле `is_overdue` — лишь материализация для фильтров и отчётов, её обновляет cron.
+  Иначе перенос дедлайна оставлял бы задачу с неверным статусом.
+* **Автоперенос ничего не копирует.** «Мой день» — это окно выборки:
+  задачи с дедлайном сегодня **плюс** все незакрытые с дедлайном раньше. Задачи не дублируются
+  и не теряются, а cron только проставляет флаги и считает `carry_over_days`.
+* **Ничего не удаляется.** Выполненные задачи остаются в архиве и показываются зачёркнутыми;
+  сотрудники не удаляются, а деактивируются (`is_active = false`), иначе рвётся история задач.
+
+## 5. Жизненный цикл задачи
+
+```
+IN_PROGRESS ──submit──> PENDING_ACCEPTANCE ──accept──> DONE
+     ▲                          │
+     └────────reject────────────┘
+     ▲                                            │
+     └──────────────reopen────────────────────────┘
+
+Если принимающий не указан, submit сразу переводит задачу в DONE.
+Отмена (cancel) переводит в CANCELLED — задача остаётся в архиве.
+```
+
+## 6. Планировщик
+
+`worker/cron.ts` вызывает по расписанию защищённые эндпоинты:
+
+| Расписание | Джоб | Что делает |
+|---|---|---|
+| 00:05 ежедневно | `rollover` | помечает просроченное, считает дни переноса, уведомляет исполнителей |
+| каждый час | `reminders` | напоминания о дедлайнах в ближайшие N часов |
+| каждый час :30 | `rollover` | актуализация просрочки в течение дня |
+| `DAILY_REPORT_TIME`, пн–пт | `daily-report` | сводка главбухам по отделам и директору по компании |
+| `DAILY_REPORT_TIME`, пт | `weekly-report` | недельная сводка |
+| 1-е число, 06:30 | `monthly-report` | месячная сводка |
+
+Вместо воркера можно использовать системный cron или Vercel Cron:
+
+```bash
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://tm.example.ru/api/cron/daily-report
+```
+
+Отчёт идемпотентен: повторный запуск за тот же период перезаписывает сводку, а не плодит копии.
+Кнопка «Пересчитать сейчас» в разделе «Отчёты» делает то же самое вручную.
+
+Отправка отчётов по email намеренно не реализована — сводка доступна в интерфейсе
+и приходит уведомлением. Точка расширения: `notify(...)` в `src/lib/jobs/reports.ts`.
+
+## 7. Вложения
+
+Файлы лежат на диске в `UPLOAD_DIR/tasks/<id>/<uuid>.<ext>`, в БД — только метаданные.
+Имя на диске случайное, оригинальное хранится в базе, поэтому имя файла не влияет на путь.
+Скачивание идёт через `/api/attachments/[id]` с проверкой прав на задачу — прямой раздачи
+каталога нет. Разрешены `.pdf .jpg .jpeg .png .tif .tiff .doc .docx .xls .xlsx .csv .txt .rtf .zip`,
+до 20 МБ на файл; проверяется и расширение, и MIME-тип.
+
+## 8. Структура проекта
+
+```
+prisma/schema.prisma      схема БД и миграции
+prisma/seed.ts            демо-данные
+worker/cron.ts            планировщик
+src/lib/                  auth, permissions, tasks, storage, settings, jobs/
+src/app/api/              REST: auth, tasks, attachments, reports, users, departments, cron
+src/app/(app)/            интерфейс: dashboard, tasks, reports, notifications, admin
+src/components/           формы, карточки задач, таблицы
+```
+
+## 9. Проверка
+
+```bash
+npm run typecheck   # tsc --noEmit
+npm run build       # прод-сборка
+```

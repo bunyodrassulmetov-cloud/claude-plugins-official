@@ -1,0 +1,247 @@
+// Task Manager отдела бухгалтерии — схема данных.
+// Комментарии на русском: схему читают не только разработчики.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Роли. Права проверяются на сервере в src/lib/permissions.ts
+enum Role {
+  ADMIN /// системный администратор: пользователи, отделы, настройки
+  DIRECTOR /// директор: видит всё, может ставить задачи любому
+  CHIEF_ACCOUNTANT /// главный бухгалтер: свой отдел целиком + отчёты по нему
+  ACCOUNTANT /// бухгалтер/оператор: только свои задачи
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+/// "Просрочено" — не статус, а производное состояние (см. Task.isOverdue):
+/// иначе перенос дедлайна оставляет задачу с неверным статусом.
+enum TaskStatus {
+  IN_PROGRESS /// в работе
+  PENDING_ACCEPTANCE /// исполнитель отчитался, ждёт принимающего
+  DONE /// принято/выполнено
+  CANCELLED /// отменена, остаётся в архиве
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_UPDATED
+  TASK_SUBMITTED /// исполнитель сдал результат — принимающему
+  TASK_ACCEPTED
+  TASK_REJECTED
+  DEADLINE_SOON
+  TASK_OVERDUE
+  REPORT_READY
+}
+
+enum ReportPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+model Department {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  headId    Int?     @unique /// главный бухгалтер отдела
+  head      User?    @relation("DepartmentHead", fields: [headId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members User[]   @relation("DepartmentMembers")
+  tasks   Task[]
+  reports Report[]
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  position     String? /// должность для отображения
+  role         Role     @default(ACCOUNTANT)
+  departmentId Int?
+  department   Department? @relation("DepartmentMembers", fields: [departmentId], references: [id], onDelete: SetNull)
+  managerId    Int? /// непосредственный руководитель
+  manager      User?    @relation("Subordinates", fields: [managerId], references: [id], onDelete: SetNull)
+  subordinates User[]   @relation("Subordinates")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  headedDepartment Department? @relation("DepartmentHead")
+
+  assignedTasks Task[] @relation("Assignee")
+  orderedTasks  Task[] @relation("Customer")
+  acceptedTasks Task[] @relation("Acceptor")
+  createdTasks  Task[] @relation("CreatedBy")
+
+  notes         TaskNote[]
+  attachments   Attachment[]
+  activity      TaskActivity[]
+  notifications Notification[]
+  reports       Report[]       @relation("ReportRecipient")
+  reportItems   ReportItem[]
+
+  @@index([departmentId])
+  @@index([managerId])
+}
+
+model Task {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+
+  assigneeId Int /// исполнитель
+  assignee   User @relation("Assignee", fields: [assigneeId], references: [id])
+  customerId Int /// заказчик (кто поставил задачу)
+  customer   User @relation("Customer", fields: [customerId], references: [id])
+  acceptorId Int? /// принимающий результат; null — приёмка не требуется
+  acceptor   User? @relation("Acceptor", fields: [acceptorId], references: [id])
+  createdById Int
+  createdBy   User @relation("CreatedBy", fields: [createdById], references: [id])
+
+  departmentId Int? /// отдел исполнителя на момент создания — по нему строятся отчёты
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  priority Priority   @default(MEDIUM)
+  status   TaskStatus @default(IN_PROGRESS)
+  deadline DateTime
+
+  /// Материализуется ночным cron-джобом: нужен для быстрых фильтров и отчётов.
+  isOverdue     Boolean   @default(false)
+  overdueSince  DateTime? /// дата, с которой задача считается просроченной
+  carryOverDays Int       @default(0) /// сколько дней задача переносится
+
+  submittedAt DateTime? /// когда исполнитель отчитался
+  acceptedAt  DateTime? /// когда принимающий подтвердил результат
+  completedAt DateTime? /// когда задача стала DONE
+  cancelledAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notes       TaskNote[]
+  attachments Attachment[]
+  activity    TaskActivity[]
+  notifications Notification[]
+
+  @@index([assigneeId, deadline])
+  @@index([departmentId, status])
+  @@index([status, deadline])
+  @@index([customerId])
+  @@index([acceptorId])
+}
+
+/// Заметки дополняются по ходу выполнения, история сохраняется.
+model TaskNote {
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+}
+
+/// Файл лежит на диске (UPLOAD_DIR), в БД — только метаданные и относительный путь.
+model Attachment {
+  id           Int      @id @default(autoincrement())
+  taskId       Int
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedById Int
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  originalName String
+  storedPath   String /// относительно UPLOAD_DIR
+  mimeType     String
+  sizeBytes    Int
+  createdAt    DateTime @default(now())
+
+  @@index([taskId])
+}
+
+/// Аудит изменений задачи — кто, что и когда поменял.
+model TaskActivity {
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actorId   Int?
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action    String /// created | status_changed | updated | note_added | attachment_added | ...
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  taskId    Int?
+  task      Task?            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title     String
+  body      String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead, createdAt])
+}
+
+/// Сводка за период для конкретного руководителя (или директора — по всем отделам).
+model Report {
+  id           Int          @id @default(autoincrement())
+  periodType   ReportPeriod
+  periodStart  DateTime
+  periodEnd    DateTime
+  departmentId Int? /// null — сводка по всей компании (для директора)
+  department   Department?  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  recipientId  Int
+  recipient    User         @relation("ReportRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  generatedAt  DateTime     @default(now())
+  totals       Json /// {planned, completed, pendingAcceptance, overdue, cancelled}
+
+  items ReportItem[]
+
+  @@unique([recipientId, periodType, periodStart])
+  @@index([departmentId, periodStart])
+}
+
+/// Строка отчёта по одному сотруднику.
+model ReportItem {
+  id           Int    @id @default(autoincrement())
+  reportId     Int
+  report       Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  userId       Int
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planned      Int    @default(0)
+  completed    Int    @default(0)
+  pending      Int    @default(0) /// сдано, ждёт приёмки
+  overdue      Int    @default(0)
+  carriedOver  Int    @default(0) /// перенесено с прошлых дней
+  /// Список невыполненных: [{id, title, priority, deadline, customer, acceptor}]
+  unfinished   Json
+
+  @@unique([reportId, userId])
+}
+
+/// Настройки приложения (время отчёта, таймзона, окно напоминаний).
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
