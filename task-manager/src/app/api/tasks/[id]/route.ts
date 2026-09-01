@@ -22,7 +22,14 @@ export async function GET(_request: NextRequest, { params }: Params) {
       }),
       prisma.attachment.findMany({
         where: { taskId: task.id },
-        include: { uploadedBy: { select: { id: true, fullName: true } } },
+      select: {
+        id: true,
+        originalName: true,
+        mimeType: true,
+        sizeBytes: true,
+        createdAt: true,
+        uploadedBy: { select: { id: true, fullName: true } },
+      },
         orderBy: { createdAt: 'asc' },
       }),
       prisma.taskActivity.findMany({

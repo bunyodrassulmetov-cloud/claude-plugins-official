@@ -46,9 +46,16 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
       include: { author: { select: { fullName: true } } },
       orderBy: { createdAt: 'asc' },
     }),
+    // data не выбираем: содержимое файлов не нужно для списка и раздуло бы ответ
     prisma.attachment.findMany({
       where: { taskId },
-      include: { uploadedBy: { select: { fullName: true } } },
+      select: {
+        id: true,
+        originalName: true,
+        sizeBytes: true,
+        createdAt: true,
+        uploadedBy: { select: { fullName: true } },
+      },
       orderBy: { createdAt: 'asc' },
     }),
     prisma.taskActivity.findMany({

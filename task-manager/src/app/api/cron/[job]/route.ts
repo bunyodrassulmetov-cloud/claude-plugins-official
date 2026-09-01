@@ -10,10 +10,10 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Точка входа для внешнего планировщика (системный crontab, Vercel Cron):
- *   curl -H "Authorization: Bearer $CRON_SECRET" http://host/api/cron/daily-report
+ *   curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://host/api/cron/daily-report
  * Те же джобы запускает встроенный воркер (npm run worker).
  */
-export async function POST(request: NextRequest, { params }: { params: Promise<{ job: string }> }) {
+async function runJob(request: NextRequest, paramsPromise: Promise<{ job: string }>) {
   return handle(async () => {
     const header = request.headers.get('authorization') ?? '';
     const token = header.replace(/^Bearer\s+/i, '');
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       throw new HttpError(401, 'Неверный CRON_SECRET');
     }
 
-    const { job } = await params;
+    const { job } = await paramsPromise;
     switch (job) {
       case 'rollover':
         return ok(await markOverdueTasks());
@@ -37,4 +37,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         throw new HttpError(404, `Неизвестная задача: ${job}`);
     }
   });
+}
+
+export async function POST(request: NextRequest, { params }: { params: Promise<{ job: string }> }) {
+  return runJob(request, params);
+}
+
+// Vercel Cron вызывает задания GET-запросом и сам подставляет заголовок с CRON_SECRET
+export async function GET(request: NextRequest, { params }: { params: Promise<{ job: string }> }) {
+  return runJob(request, params);
 }

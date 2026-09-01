@@ -24,7 +24,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       saved.push(
         await prisma.attachment.create({
           data: { taskId: task.id, uploadedById: user.id, ...meta },
-          include: { uploadedBy: { select: { id: true, fullName: true } } },
+      select: {
+        id: true,
+        originalName: true,
+        mimeType: true,
+        sizeBytes: true,
+        createdAt: true,
+        uploadedBy: { select: { id: true, fullName: true } },
+      },
         }),
       );
     }

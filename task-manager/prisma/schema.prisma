@@ -157,7 +157,9 @@ model TaskNote {
   @@index([taskId, createdAt])
 }
 
-/// Файл лежит на диске (UPLOAD_DIR), в БД — только метаданные и относительный путь.
+/// Файл лежит на диске (UPLOAD_DIR), в БД — метаданные и относительный путь.
+/// При STORAGE_DRIVER=database содержимое хранится в поле data, а storedPath пуст —
+/// это нужно для хостингов без постоянного диска (Vercel и подобные).
 model Attachment {
   id           Int      @id @default(autoincrement())
   taskId       Int
@@ -165,7 +167,8 @@ model Attachment {
   uploadedById Int
   uploadedBy   User     @relation(fields: [uploadedById], references: [id])
   originalName String
-  storedPath   String /// относительно UPLOAD_DIR
+  storedPath   String /// относительно UPLOAD_DIR; пусто при хранении в БД
+  data         Bytes? /// содержимое файла при STORAGE_DRIVER=database
   mimeType     String
   sizeBytes    Int
   createdAt    DateTime @default(now())
