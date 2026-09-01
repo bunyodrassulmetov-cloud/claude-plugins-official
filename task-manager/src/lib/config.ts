@@ -2,6 +2,10 @@
 export const config = {
   jwtSecret: process.env.JWT_SECRET ?? '',
   sessionTtlHours: Number(process.env.SESSION_TTL_HOURS ?? 12),
+  /** Cookie только по HTTPS. Выключается для развёртывания во внутренней сети по http://. */
+  cookieSecure: process.env.COOKIE_SECURE
+    ? process.env.COOKIE_SECURE === 'true'
+    : process.env.NODE_ENV === 'production',
   uploadDir: process.env.UPLOAD_DIR ?? './uploads',
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB ?? 20),
   timezone: process.env.APP_TIMEZONE ?? 'Europe/Moscow',

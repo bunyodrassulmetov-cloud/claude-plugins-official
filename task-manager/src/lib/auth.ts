@@ -32,7 +32,7 @@ export async function createSessionCookie(user: { id: number; email: string; rol
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: config.cookieSecure,
     path: '/',
     maxAge: config.sessionTtlHours * 3600,
   });
