@@ -1,183 +1,249 @@
 /**
- * Демо-данные: два отдела, все роли и задачи в разных состояниях
- * (в работе, на приёмке, выполненные, просроченные с прошлых дней).
+ * Начальные данные: отделы, сотрудники и несколько демонстрационных задач.
  *   npm run db:seed
+ *
+ * Чтобы изменить штат — правьте два списка ниже (DEPARTMENTS и STAFF)
+ * и запускайте `npx prisma migrate reset`: база пересоздастся с новым составом.
+ * Сотрудники сопоставляются по email, поэтому повторный запуск не плодит дубликаты.
  */
-import { PrismaClient, type Priority, type TaskStatus } from '@prisma/client';
+import { PrismaClient, type Priority, type Role, type TaskStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import 'dotenv/config';
 
 const prisma = new PrismaClient();
 const PASSWORD = process.env.SEED_DEFAULT_PASSWORD ?? 'Password123!';
 
+/** Отделы. headEmail — руководитель, которому приходит ежедневная сводка по отделу. */
+const DEPARTMENTS: { name: string; headEmail: string }[] = [
+  { name: 'Бухгалтерия', headEmail: 'suhrob@company.ru' },
+  { name: 'Дизайн', headEmail: 'gayrat@company.ru' },
+];
+
+/**
+ * Сотрудники.
+ * role: ADMIN — учётные записи и настройки; DIRECTOR — видит всё;
+ *       CHIEF_ACCOUNTANT — свой отдел и отчёты по нему; ACCOUNTANT — только свои задачи.
+ */
+const STAFF: {
+  email: string;
+  fullName: string;
+  position: string;
+  role: Role;
+  department?: string;
+  managerEmail?: string;
+}[] = [
+  {
+    email: 'admin@company.ru',
+    fullName: 'Администратор системы',
+    position: 'Системный администратор',
+    role: 'ADMIN',
+  },
+  {
+    email: 'gayrat@company.ru',
+    fullName: 'Гайрат Ниязходжаев',
+    position: 'Директор',
+    role: 'DIRECTOR',
+  },
+  {
+    email: 'suhrob@company.ru',
+    fullName: 'Сухроб Ирискулов',
+    position: 'Главный бухгалтер',
+    role: 'CHIEF_ACCOUNTANT',
+    department: 'Бухгалтерия',
+    managerEmail: 'gayrat@company.ru',
+  },
+  { email: 'olimboy@company.ru', fullName: 'Олимбой', position: 'Бухгалтер', role: 'ACCOUNTANT', department: 'Бухгалтерия', managerEmail: 'suhrob@company.ru' },
+  { email: 'shohruh@company.ru', fullName: 'Шохрух', position: 'Бухгалтер', role: 'ACCOUNTANT', department: 'Бухгалтерия', managerEmail: 'suhrob@company.ru' },
+  { email: 'shahriyor@company.ru', fullName: 'Шахриёр', position: 'Бухгалтер', role: 'ACCOUNTANT', department: 'Бухгалтерия', managerEmail: 'suhrob@company.ru' },
+  { email: 'zohid@company.ru', fullName: 'Зохид', position: 'Бухгалтер', role: 'ACCOUNTANT', department: 'Бухгалтерия', managerEmail: 'suhrob@company.ru' },
+  { email: 'bilol@company.ru', fullName: 'Билол', position: 'Бухгалтер', role: 'ACCOUNTANT', department: 'Бухгалтерия', managerEmail: 'suhrob@company.ru' },
+  { email: 'kamolhon@company.ru', fullName: 'Камолхон', position: 'Бухгалтер', role: 'ACCOUNTANT', department: 'Бухгалтерия', managerEmail: 'suhrob@company.ru' },
+  { email: 'samandar@company.ru', fullName: 'Самандар', position: 'Дизайнер', role: 'ACCOUNTANT', department: 'Дизайн', managerEmail: 'gayrat@company.ru' },
+];
+
 const hours = (n: number) => new Date(Date.now() + n * 3_600_000);
 const days = (n: number) => hours(n * 24);
+
+/** Демонстрационные задачи: в работе, на приёмке, выполненные и просроченные. */
+const DEMO_TASKS: {
+  title: string;
+  description: string;
+  assignee: string;
+  customer: string;
+  acceptor?: string;
+  priority: Priority;
+  status: TaskStatus;
+  deadline: Date;
+  note?: string;
+}[] = [
+  {
+    title: 'Сдать декларацию по НДС за квартал',
+    description: 'Проверить книгу покупок и продаж, выгрузить отчёт, отправить в налоговую.',
+    assignee: 'olimboy@company.ru', customer: 'suhrob@company.ru', acceptor: 'suhrob@company.ru',
+    priority: 'CRITICAL', status: 'IN_PROGRESS', deadline: hours(6),
+    note: 'Расхождение по счёту на 12 400 — уточняю у поставщика.',
+  },
+  {
+    title: 'Акты сверки с ООО «Ромашка»',
+    description: 'Подготовить и согласовать акты сверки за первое полугодие.',
+    assignee: 'olimboy@company.ru', customer: 'gayrat@company.ru', acceptor: 'suhrob@company.ru',
+    priority: 'HIGH', status: 'IN_PROGRESS', deadline: days(-2),
+    note: 'Контрагент не отвечает третий день.',
+  },
+  {
+    title: 'Начисление заработной платы за месяц',
+    description: 'Проверить табели, начислить, сформировать реестр на выплату.',
+    assignee: 'shohruh@company.ru', customer: 'suhrob@company.ru', acceptor: 'suhrob@company.ru',
+    priority: 'CRITICAL', status: 'PENDING_ACCEPTANCE', deadline: hours(3),
+  },
+  {
+    title: 'Авансовые отчёты по командировкам',
+    description: 'Обработать авансовые отчёты за прошлую неделю, приложить сканы.',
+    assignee: 'shahriyor@company.ru', customer: 'suhrob@company.ru',
+    priority: 'MEDIUM', status: 'DONE', deadline: hours(-4),
+  },
+  {
+    title: 'Сверка расчётов с налоговой',
+    description: 'Запросить справку о состоянии расчётов, разобрать расхождения.',
+    assignee: 'zohid@company.ru', customer: 'suhrob@company.ru', acceptor: 'suhrob@company.ru',
+    priority: 'MEDIUM', status: 'IN_PROGRESS', deadline: days(-1),
+  },
+  {
+    title: 'Отчёт по страховым взносам',
+    description: 'Сформировать отчёт, проверить контрольные соотношения.',
+    assignee: 'bilol@company.ru', customer: 'suhrob@company.ru', acceptor: 'suhrob@company.ru',
+    priority: 'HIGH', status: 'IN_PROGRESS', deadline: hours(20),
+  },
+  {
+    title: 'Инвентаризация основных средств',
+    description: 'Подготовить инвентаризационные описи по складу №2.',
+    assignee: 'kamolhon@company.ru', customer: 'gayrat@company.ru',
+    priority: 'LOW', status: 'IN_PROGRESS', deadline: days(5),
+  },
+  {
+    title: 'Кассовая книга за неделю',
+    description: 'Сформировать и подшить кассовую книгу, проверить лимит остатка.',
+    assignee: 'kamolhon@company.ru', customer: 'suhrob@company.ru',
+    priority: 'LOW', status: 'DONE', deadline: hours(-26),
+  },
+  {
+    title: 'Макет годового отчёта для инвесторов',
+    description: 'Свёрстать презентацию по данным бухгалтерии, 12 слайдов.',
+    assignee: 'samandar@company.ru', customer: 'gayrat@company.ru', acceptor: 'gayrat@company.ru',
+    priority: 'HIGH', status: 'IN_PROGRESS', deadline: days(3),
+  },
+];
 
 async function main() {
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
 
-  const upsertUser = (
-    email: string,
-    fullName: string,
-    role: 'ADMIN' | 'DIRECTOR' | 'CHIEF_ACCOUNTANT' | 'ACCOUNTANT',
-    position: string,
-  ) =>
-    prisma.user.upsert({
-      where: { email },
-      update: { fullName, role, position },
-      create: { email, fullName, role, position, passwordHash },
+  // 1. Отделы (без руководителей — их назначаем после создания сотрудников)
+  const departments = new Map<string, number>();
+  for (const item of DEPARTMENTS) {
+    const department = await prisma.department.upsert({
+      where: { name: item.name },
+      update: {},
+      create: { name: item.name },
     });
-
-  const admin = await upsertUser('admin@company.ru', 'Администратор Системы', 'ADMIN', 'Системный администратор');
-  const director = await upsertUser('director@company.ru', 'Ковалёв Игорь Петрович', 'DIRECTOR', 'Директор');
-  const chief = await upsertUser('chief@company.ru', 'Морозова Елена Сергеевна', 'CHIEF_ACCOUNTANT', 'Главный бухгалтер');
-  const chief2 = await upsertUser('chief2@company.ru', 'Титова Ольга Ивановна', 'CHIEF_ACCOUNTANT', 'Руководитель расчётного отдела');
-  const acc1 = await upsertUser('accountant1@company.ru', 'Смирнова Анна Викторовна', 'ACCOUNTANT', 'Бухгалтер');
-  const acc2 = await upsertUser('accountant2@company.ru', 'Петров Дмитрий Олегович', 'ACCOUNTANT', 'Бухгалтер');
-  const acc3 = await upsertUser('operator1@company.ru', 'Кузнецова Мария Андреевна', 'ACCOUNTANT', 'Оператор');
-  const acc4 = await upsertUser('operator2@company.ru', 'Волков Сергей Николаевич', 'ACCOUNTANT', 'Оператор');
-
-  const accounting = await prisma.department.upsert({
-    where: { name: 'Бухгалтерия' },
-    update: { headId: chief.id },
-    create: { name: 'Бухгалтерия', headId: chief.id },
-  });
-  const payroll = await prisma.department.upsert({
-    where: { name: 'Расчётный отдел' },
-    update: { headId: chief2.id },
-    create: { name: 'Расчётный отдел', headId: chief2.id },
-  });
-
-  await prisma.user.update({ where: { id: chief.id }, data: { departmentId: accounting.id, managerId: director.id } });
-  await prisma.user.update({ where: { id: chief2.id }, data: { departmentId: payroll.id, managerId: director.id } });
-  for (const user of [acc1, acc2]) {
-    await prisma.user.update({ where: { id: user.id }, data: { departmentId: accounting.id, managerId: chief.id } });
-  }
-  for (const user of [acc3, acc4]) {
-    await prisma.user.update({ where: { id: user.id }, data: { departmentId: payroll.id, managerId: chief2.id } });
+    departments.set(item.name, department.id);
   }
 
+  // 2. Сотрудники
+  const users = new Map<string, number>();
+  for (const person of STAFF) {
+    const user = await prisma.user.upsert({
+      where: { email: person.email },
+      update: {
+        fullName: person.fullName,
+        position: person.position,
+        role: person.role,
+        departmentId: person.department ? departments.get(person.department) : null,
+      },
+      create: {
+        email: person.email,
+        fullName: person.fullName,
+        position: person.position,
+        role: person.role,
+        departmentId: person.department ? departments.get(person.department) : null,
+        passwordHash,
+      },
+    });
+    users.set(person.email, user.id);
+  }
+
+  // 3. Руководители сотрудников и руководители отделов
+  for (const person of STAFF) {
+    if (!person.managerEmail) continue;
+    await prisma.user.update({
+      where: { id: users.get(person.email) },
+      data: { managerId: users.get(person.managerEmail) ?? null },
+    });
+  }
+  for (const item of DEPARTMENTS) {
+    await prisma.department.update({
+      where: { id: departments.get(item.name) },
+      data: { headId: users.get(item.headEmail) ?? null },
+    });
+  }
+
+  // 4. Демо-задачи — только если задач ещё нет
   const existing = await prisma.task.count();
   if (existing > 0) {
-    console.log(`Задачи уже есть (${existing}), пропускаю создание демо-задач.`);
-    console.log(`Пароль всех демо-учёток: ${PASSWORD}`);
+    console.log(`Задачи уже есть (${existing}) — создаю только сотрудников.`);
+    printStaff();
     return;
   }
 
-  type Demo = {
-    title: string;
-    description: string;
-    assigneeId: number;
-    customerId: number;
-    acceptorId?: number;
-    departmentId: number;
-    priority: Priority;
-    status: TaskStatus;
-    deadline: Date;
-    note?: string;
-  };
-
-  const demoTasks: Demo[] = [
-    {
-      title: 'Сдать декларацию по НДС за квартал',
-      description: 'Проверить книгу покупок и продаж, выгрузить в СБИС, отправить в ИФНС.',
-      assigneeId: acc1.id, customerId: chief.id, acceptorId: chief.id, departmentId: accounting.id,
-      priority: 'CRITICAL', status: 'IN_PROGRESS', deadline: hours(6),
-      note: 'Расхождение по счёту 19 на 12 400 ₽ — уточняю у поставщика.',
-    },
-    {
-      title: 'Акты сверки с ООО «Ромашка»',
-      description: 'Подготовить и согласовать акты сверки за первое полугодие.',
-      assigneeId: acc1.id, customerId: director.id, acceptorId: chief.id, departmentId: accounting.id,
-      priority: 'HIGH', status: 'IN_PROGRESS', deadline: days(-2),
-      note: 'Контрагент не отвечает третий день.',
-    },
-    {
-      title: 'Начисление заработной платы за месяц',
-      description: 'Проверить табели, начислить, сформировать реестр на выплату.',
-      assigneeId: acc3.id, customerId: chief2.id, acceptorId: chief2.id, departmentId: payroll.id,
-      priority: 'CRITICAL', status: 'PENDING_ACCEPTANCE', deadline: hours(3),
-    },
-    {
-      title: 'Авансовые отчёты по командировкам',
-      description: 'Обработать авансовые отчёты за прошлую неделю, приложить сканы.',
-      assigneeId: acc2.id, customerId: chief.id, departmentId: accounting.id,
-      priority: 'MEDIUM', status: 'DONE', deadline: hours(-4),
-    },
-    {
-      title: 'Сверка расчётов с ФНС',
-      description: 'Запросить справку о состоянии расчётов, разобрать расхождения.',
-      assigneeId: acc2.id, customerId: chief.id, acceptorId: chief.id, departmentId: accounting.id,
-      priority: 'MEDIUM', status: 'IN_PROGRESS', deadline: days(-1),
-    },
-    {
-      title: 'Отчёт по страховым взносам',
-      description: 'Сформировать РСВ, проверить контрольные соотношения.',
-      assigneeId: acc4.id, customerId: chief2.id, acceptorId: chief2.id, departmentId: payroll.id,
-      priority: 'HIGH', status: 'IN_PROGRESS', deadline: hours(20),
-    },
-    {
-      title: 'Инвентаризация основных средств',
-      description: 'Подготовить инвентаризационные описи по складу №2.',
-      assigneeId: acc4.id, customerId: director.id, departmentId: payroll.id,
-      priority: 'LOW', status: 'IN_PROGRESS', deadline: days(5),
-    },
-    {
-      title: 'Больничные листы: проверка и отправка в СФР',
-      description: 'Проверить ЭЛН за неделю, отправить сведения.',
-      assigneeId: acc3.id, customerId: chief2.id, departmentId: payroll.id,
-      priority: 'MEDIUM', status: 'DONE', deadline: hours(-26),
-    },
-    {
-      title: 'Кассовая книга за неделю',
-      description: 'Сформировать и подшить кассовую книгу, проверить лимит остатка.',
-      assigneeId: acc1.id, customerId: chief.id, departmentId: accounting.id,
-      priority: 'LOW', status: 'IN_PROGRESS', deadline: hours(10),
-    },
-  ];
-
-  for (const item of demoTasks) {
+  for (const item of DEMO_TASKS) {
+    const assigneeId = users.get(item.assignee)!;
+    const customerId = users.get(item.customer)!;
+    const person = STAFF.find((s) => s.email === item.assignee);
     const done = item.status === 'DONE';
+
     const task = await prisma.task.create({
       data: {
         title: item.title,
         description: item.description,
-        assigneeId: item.assigneeId,
-        customerId: item.customerId,
-        acceptorId: item.acceptorId ?? null,
-        createdById: item.customerId,
-        departmentId: item.departmentId,
+        assigneeId,
+        customerId,
+        acceptorId: item.acceptor ? users.get(item.acceptor) : null,
+        createdById: customerId,
+        departmentId: person?.department ? departments.get(person.department) : null,
         priority: item.priority,
         status: item.status,
         deadline: item.deadline,
         isOverdue: !done && item.status !== 'CANCELLED' && item.deadline < new Date(),
-        overdueSince: item.deadline < new Date() && !done ? item.deadline : null,
+        overdueSince: !done && item.deadline < new Date() ? item.deadline : null,
         submittedAt: item.status === 'PENDING_ACCEPTANCE' || done ? new Date() : null,
         completedAt: done ? new Date() : null,
-        notes: item.note ? { create: { authorId: item.assigneeId, body: item.note } } : undefined,
+        notes: item.note ? { create: { authorId: assigneeId, body: item.note } } : undefined,
       },
     });
     await prisma.taskActivity.create({
-      data: { taskId: task.id, actorId: item.customerId, action: 'created', details: { seed: true } },
+      data: { taskId: task.id, actorId: customerId, action: 'created', details: { seed: true } },
     });
   }
 
-  await prisma.notification.createMany({
-    data: [
-      { userId: acc1.id, type: 'TASK_OVERDUE', title: 'Задача просрочена', body: '«Акты сверки с ООО «Ромашка»» перенесена в текущий день.' },
-      { userId: chief.id, type: 'TASK_SUBMITTED', title: 'Задача сдана на приёмку', body: 'Начисление заработной платы ждёт вашей приёмки.' },
-    ],
-  });
+  printStaff();
+}
 
-  console.log('Готово. Учётные записи:');
+function printStaff() {
+  const roles: Record<Role, string> = {
+    ADMIN: 'администратор',
+    DIRECTOR: 'директор',
+    CHIEF_ACCOUNTANT: 'главный бухгалтер',
+    ACCOUNTANT: 'сотрудник',
+  };
+  console.log('\nУчётные записи:');
   console.table(
-    [admin, director, chief, chief2, acc1, acc2, acc3, acc4].map((u) => ({
-      email: u.email,
-      роль: u.role,
-      ФИО: u.fullName,
+    STAFF.map((person) => ({
+      Логин: person.email,
+      ФИО: person.fullName,
+      Должность: person.position,
+      Доступ: roles[person.role],
     })),
   );
-  console.log(`Пароль всех демо-учёток: ${PASSWORD}`);
+  console.log(`Пароль у всех: ${PASSWORD}\n`);
 }
 
 main()
