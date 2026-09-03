@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
 import { getSettings } from '@/lib/settings';
 import { isAdmin, isManager } from '@/lib/permissions';
-import { groupTasks, listTasks, taskInclude } from '@/lib/tasks';
+import { groupTasks, listTasks, taskInclude, toRowData } from '@/lib/tasks';
 import TaskSection from '@/components/TaskSection';
 import { EmptyState, StatCard } from '@/components/ui';
 
@@ -25,7 +25,10 @@ export default async function DashboardPage({
   const now = new Date();
 
   const tasks = await listTasks(user, { view: 'today', onlyMine: !teamView });
-  const { overdue, today, upcoming, done } = groupTasks(tasks, now, timezone);
+  const groups = groupTasks(tasks, now, timezone);
+  const rows = (list: typeof tasks) => list.map((task) => toRowData(task, timezone, now));
+  const { overdue, today, upcoming } = groups;
+  const done = groups.done;
 
   // Задачи, ждущие приёмки лично от текущего пользователя.
   const awaitingMyAcceptance = await prisma.task.findMany({
@@ -81,9 +84,7 @@ export default async function DashboardPage({
         <TaskSection
           title="Ждут вашей приёмки"
           hint="исполнитель отчитался о выполнении"
-          tasks={awaitingMyAcceptance}
-          timezone={timezone}
-          now={now}
+          tasks={rows(awaitingMyAcceptance)}
           tone="default"
         />
       ) : null}
@@ -91,14 +92,12 @@ export default async function DashboardPage({
       <TaskSection
         title="Просрочено"
         hint="перенесено с прошлых дней"
-        tasks={overdue}
-        timezone={timezone}
-        now={now}
+        tasks={rows(overdue)}
         tone="danger"
       />
-      <TaskSection title="На сегодня" tasks={today} timezone={timezone} now={now} />
-      <TaskSection title="Ближайшие" tasks={upcoming} timezone={timezone} now={now} />
-      <TaskSection title="Выполнено" tasks={done} timezone={timezone} now={now} tone="success" />
+      <TaskSection title="На сегодня" tasks={rows(today)} />
+      <TaskSection title="Ближайшие" tasks={rows(upcoming)} />
+      <TaskSection title="Выполнено" tasks={rows(done)} tone="success" />
 
       {tasks.length === 0 && awaitingMyAcceptance.length === 0 ? (
         <EmptyState

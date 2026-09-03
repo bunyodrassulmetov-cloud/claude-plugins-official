@@ -71,6 +71,8 @@ const DEMO_TASKS: {
   assignee: string;
   customer: string;
   acceptor?: string;
+  coAssignees?: string[];
+  checklist?: { title: string; done?: boolean }[];
   priority: Priority;
   status: TaskStatus;
   deadline: Date;
@@ -80,6 +82,13 @@ const DEMO_TASKS: {
     title: 'Сдать декларацию по НДС за квартал',
     description: 'Проверить книгу покупок и продаж, выгрузить отчёт, отправить в налоговую.',
     assignee: 'olimboy@company.ru', customer: 'suhrob@company.ru', acceptor: 'suhrob@company.ru',
+    coAssignees: ['shohruh@company.ru'],
+    checklist: [
+      { title: 'Свести книгу покупок', done: true },
+      { title: 'Свести книгу продаж', done: true },
+      { title: 'Проверить контрольные соотношения' },
+      { title: 'Выгрузить и отправить в налоговую' },
+    ],
     priority: 'CRITICAL', status: 'IN_PROGRESS', deadline: hours(6),
     note: 'Расхождение по счёту на 12 400 — уточняю у поставщика.',
   },
@@ -127,9 +136,16 @@ const DEMO_TASKS: {
     priority: 'LOW', status: 'DONE', deadline: hours(-26),
   },
   {
+    // Межотдельная задача: бухгалтерия ставит задачу дизайнеру
     title: 'Макет годового отчёта для инвесторов',
     description: 'Свёрстать презентацию по данным бухгалтерии, 12 слайдов.',
-    assignee: 'samandar@company.ru', customer: 'gayrat@company.ru', acceptor: 'gayrat@company.ru',
+    assignee: 'samandar@company.ru', customer: 'suhrob@company.ru', acceptor: 'gayrat@company.ru',
+    coAssignees: ['zohid@company.ru'],
+    checklist: [
+      { title: 'Получить цифры от бухгалтерии', done: true },
+      { title: 'Собрать структуру презентации' },
+      { title: 'Свёрстать слайды' },
+    ],
     priority: 'HIGH', status: 'IN_PROGRESS', deadline: days(3),
   },
 ];
@@ -219,6 +235,23 @@ async function main() {
         notes: item.note ? { create: { authorId: assigneeId, body: item.note } } : undefined,
       },
     });
+    if (item.coAssignees?.length) {
+      await prisma.taskAssignee.createMany({
+        data: item.coAssignees.map((email) => ({ taskId: task.id, userId: users.get(email)! })),
+      });
+    }
+    if (item.checklist?.length) {
+      await prisma.checklistItem.createMany({
+        data: item.checklist.map((entry, index) => ({
+          taskId: task.id,
+          title: entry.title,
+          position: index + 1,
+          isDone: Boolean(entry.done),
+          doneById: entry.done ? assigneeId : null,
+          doneAt: entry.done ? new Date() : null,
+        })),
+      });
+    }
     await prisma.taskActivity.create({
       data: { taskId: task.id, actorId: customerId, action: 'created', details: { seed: true } },
     });

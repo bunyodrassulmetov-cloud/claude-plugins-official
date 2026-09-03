@@ -49,6 +49,7 @@ export default async function NewTaskPage() {
           assigneeId: assignees.length === 1 ? assignees[0].id : user.id,
           customerId: user.id,
           acceptorId: '',
+          coAssigneeIds: [],
           priority: 'MEDIUM',
           deadline: defaultDeadline,
         }}

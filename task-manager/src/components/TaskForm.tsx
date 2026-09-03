@@ -14,6 +14,7 @@ export type TaskFormValues = {
   assigneeId: number | '';
   customerId: number | '';
   acceptorId: number | '';
+  coAssigneeIds: number[];
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   deadline: string; // значение datetime-local
 };
@@ -56,6 +57,7 @@ export default function TaskForm({
       assigneeId: Number(values.assigneeId),
       customerId: Number(values.customerId),
       acceptorId: values.acceptorId ? Number(values.acceptorId) : null,
+      coAssigneeIds: values.coAssigneeIds,
       priority: values.priority,
       // datetime-local не содержит зоны — трактуем ввод в рабочем часовом поясе компании
       deadline: fromZonedTime(values.deadline, timezone).toISOString(),
@@ -190,6 +192,38 @@ export default function TaskForm({
             Если указан — задача закроется только после его подтверждения.
           </p>
         </div>
+      </div>
+
+      <div>
+        <span className="label">Со-исполнители</span>
+        <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-300 bg-white p-2">
+          <div className="grid gap-1 sm:grid-cols-2">
+            {people
+              .filter((person) => person.id !== Number(values.assigneeId))
+              .map((person) => (
+                <label key={person.id} className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300"
+                    checked={values.coAssigneeIds.includes(person.id)}
+                    onChange={(e) =>
+                      set(
+                        'coAssigneeIds',
+                        e.target.checked
+                          ? [...values.coAssigneeIds, person.id]
+                          : values.coAssigneeIds.filter((id) => id !== person.id),
+                      )
+                    }
+                  />
+                  {person.fullName}
+                </label>
+              ))}
+          </div>
+        </div>
+        <p className="mt-1 text-xs text-slate-400">
+          Помогают основному исполнителю: видят задачу, ведут чек-лист и могут отметить выполнение.
+          В отчёте задача считается за основным исполнителем.
+        </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

@@ -15,6 +15,7 @@ export const taskCreateSchema = z.object({
   assigneeId: z.coerce.number().int().positive('Выберите исполнителя'),
   customerId: z.coerce.number().int().positive('Выберите заказчика'),
   acceptorId: z.coerce.number().int().positive().optional().nullable(),
+  coAssigneeIds: z.array(z.coerce.number().int().positive()).max(15).optional(),
   priority: priorityEnum.default('MEDIUM'),
   deadline: z.coerce.date({ errorMap: () => ({ message: 'Укажите корректный дедлайн' }) }),
   note: z.string().trim().max(5000).optional().nullable(),
@@ -25,6 +26,15 @@ export const taskUpdateSchema = taskCreateSchema.partial().omit({ note: true });
 export const taskActionSchema = z.object({
   action: z.enum(['submit', 'accept', 'reject', 'reopen', 'cancel', 'complete']),
   comment: z.string().trim().max(2000).optional().nullable(),
+});
+
+export const checklistCreateSchema = z.object({
+  title: z.string().trim().min(1, 'Введите название пункта').max(300),
+});
+
+export const checklistUpdateSchema = z.object({
+  title: z.string().trim().min(1).max(300).optional(),
+  isDone: z.boolean().optional(),
 });
 
 export const noteSchema = z.object({

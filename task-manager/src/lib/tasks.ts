@@ -1,9 +1,9 @@
 import 'server-only';
-import type { Prisma, TaskStatus } from '@prisma/client';
+import type { Prisma, Priority, TaskStatus } from '@prisma/client';
 import { prisma } from './db';
 import type { SessionUser } from './auth';
 import { visibleTasksFilter } from './permissions';
-import { dayBounds } from './dates';
+import { dayBounds, formatDateTime, humanizeDeadline } from './dates';
 import { getSettings } from './settings';
 
 export const taskInclude = {
@@ -11,6 +11,9 @@ export const taskInclude = {
   customer: { select: { id: true, fullName: true, email: true } },
   acceptor: { select: { id: true, fullName: true, email: true } },
   department: { select: { id: true, name: true } },
+  coAssignees: { select: { userId: true, user: { select: { id: true, fullName: true } } } },
+  // Пункты чек-листа нужны только для счётчика «сделано из всего» в списке
+  checklist: { select: { id: true, isDone: true } },
   _count: { select: { attachments: true, notes: true } },
 } satisfies Prisma.TaskInclude;
 
@@ -112,6 +115,61 @@ export function groupTasks(tasks: TaskWithRelations[], now = new Date(), timezon
     }
   }
   return { overdue, today, upcoming, done };
+}
+
+/** Данные одной строки списка: всё уже отформатировано на сервере,
+ *  чтобы клиентский компонент не зависел от часового пояса браузера. */
+export type TaskRowData = {
+  id: number;
+  title: string;
+  description: string | null;
+  priority: Priority;
+  status: TaskStatus;
+  assignee: string;
+  customer: string;
+  acceptor: string | null;
+  coAssignees: string[];
+  department: string | null;
+  deadlineText: string;
+  deadlineHuman: string;
+  overdue: boolean;
+  closed: boolean;
+  completedText: string | null;
+  attachments: number;
+  notes: number;
+  checklistDone: number;
+  checklistTotal: number;
+  carryOverDays: number;
+};
+
+export function toRowData(
+  task: TaskWithRelations,
+  timezone: string,
+  now = new Date(),
+): TaskRowData {
+  const closed = task.status === 'DONE' || task.status === 'CANCELLED';
+  return {
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    priority: task.priority,
+    status: task.status,
+    assignee: task.assignee.fullName,
+    customer: task.customer.fullName,
+    acceptor: task.acceptor?.fullName ?? null,
+    coAssignees: task.coAssignees.map((item) => item.user.fullName),
+    department: task.department?.name ?? null,
+    deadlineText: formatDateTime(task.deadline, timezone),
+    deadlineHuman: humanizeDeadline(task.deadline, now),
+    overdue: isTaskOverdue(task, now),
+    closed,
+    completedText: task.completedAt ? formatDateTime(task.completedAt, timezone) : null,
+    attachments: task._count.attachments,
+    notes: task._count.notes,
+    checklistDone: task.checklist.filter((item) => item.isDone).length,
+    checklistTotal: task.checklist.length,
+    carryOverDays: task.carryOverDays,
+  };
 }
 
 export async function logActivity(

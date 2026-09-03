@@ -20,10 +20,16 @@ type TaskInput = {
   assigneeId: number;
   customerId: number;
   acceptorId?: number | null;
+  coAssigneeIds?: number[];
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   deadline: Date;
   note?: string | null;
 };
+
+/** Убираем дубли и основного исполнителя: он не может быть сам себе со-исполнителем. */
+function normalizeCoAssignees(ids: number[] | undefined, assigneeId: number) {
+  return Array.from(new Set(ids ?? [])).filter((id) => id !== assigneeId);
+}
 
 async function assertUsersExist(ids: (number | null | undefined)[]) {
   const unique = Array.from(new Set(ids.filter((id): id is number => typeof id === 'number')));
@@ -48,7 +54,8 @@ export async function createTask(user: SessionUser, input: TaskInput) {
   if (!(await canAssignTo(user, input.assigneeId))) {
     throw new HttpError(403, 'Вы не можете назначать задачи этому сотруднику');
   }
-  await assertUsersExist([input.assigneeId, input.customerId, input.acceptorId]);
+  await assertUsersExist([input.assigneeId, input.customerId, input.acceptorId, ...(input.coAssigneeIds ?? [])]);
+  const coAssigneeIds = normalizeCoAssignees(input.coAssigneeIds, input.assigneeId);
 
   const assignee = await prisma.user.findUniqueOrThrow({
     where: { id: input.assigneeId },
@@ -68,6 +75,7 @@ export async function createTask(user: SessionUser, input: TaskInput) {
       deadline: input.deadline,
       isOverdue: input.deadline < new Date(),
       overdueSince: input.deadline < new Date() ? input.deadline : null,
+      coAssignees: { create: coAssigneeIds.map((userId) => ({ userId })) },
       notes: input.note ? { create: { authorId: user.id, body: input.note } } : undefined,
     },
     include: taskInclude,
@@ -94,6 +102,13 @@ export async function createTask(user: SessionUser, input: TaskInput) {
             },
           ]
         : []),
+      ...coAssigneeIds.map((userId) => ({
+        userId,
+        type: 'TASK_ASSIGNED' as const,
+        taskId: task.id,
+        title: 'Вы со-исполнитель по задаче',
+        body: `«${task.title}» — ответственный ${assignee.fullName}.`,
+      })),
     ],
     user.id,
   );
@@ -110,7 +125,7 @@ export async function updateTask(user: SessionUser, id: number, input: Partial<T
       throw new HttpError(403, 'Вы не можете назначать задачи этому сотруднику');
     }
   }
-  await assertUsersExist([input.assigneeId, input.customerId, input.acceptorId]);
+  await assertUsersExist([input.assigneeId, input.customerId, input.acceptorId, ...(input.coAssigneeIds ?? [])]);
 
   const data: Prisma.TaskUpdateInput = {};
   if (input.title !== undefined) data.title = input.title;
@@ -138,6 +153,11 @@ export async function updateTask(user: SessionUser, id: number, input: Partial<T
   if (input.customerId !== undefined) data.customer = { connect: { id: input.customerId } };
   if (input.acceptorId !== undefined) {
     data.acceptor = input.acceptorId ? { connect: { id: input.acceptorId } } : { disconnect: true };
+  }
+  if (input.coAssigneeIds !== undefined) {
+    // Список со-исполнителей заменяется целиком — так проще, чем считать разницу
+    const ids = normalizeCoAssignees(input.coAssigneeIds, input.assigneeId ?? task.assigneeId);
+    data.coAssignees = { deleteMany: {}, create: ids.map((userId) => ({ userId })) };
   }
 
   const updated = await prisma.task.update({ where: { id }, data, include: taskInclude });

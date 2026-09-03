@@ -13,7 +13,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const unread = await unreadCount(user.id);
   const links = [
-    ...(isAdmin(user) ? [] : [{ href: '/dashboard', label: 'Мой день' }, { href: '/tasks', label: 'Задачи' }]),
+    ...(isAdmin(user)
+      ? []
+      : [
+          { href: '/dashboard', label: 'Мой день' },
+          { href: '/tasks', label: 'Задачи' },
+          { href: '/company', label: 'Компания' },
+        ]),
     ...(isManager(user) ? [{ href: '/reports', label: 'Отчёты' }] : []),
     ...(isAdmin(user)
       ? [

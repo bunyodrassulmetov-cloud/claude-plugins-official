@@ -6,7 +6,10 @@ import type { SessionUser } from './auth';
 export type TaskLike = Pick<
   Task,
   'id' | 'assigneeId' | 'customerId' | 'acceptorId' | 'createdById' | 'departmentId' | 'status'
->;
+> & {
+  /** Со-исполнители, если загружены: они видят задачу и работают над ней наравне. */
+  coAssignees?: { userId: number }[];
+};
 
 export const ROLE_LABELS: Record<SessionUser['role'], string> = {
   ADMIN: 'Администратор',
@@ -47,12 +50,15 @@ export async function subordinateIds(user: SessionUser): Promise<number[]> {
   return users.map((u) => u.id);
 }
 
-/** Кому пользователь может назначить задачу (включая себя). */
+/**
+ * Кому пользователь может назначить задачу.
+ * Отделы работают друг с другом, поэтому задачу можно поставить любому сотруднику:
+ * ответственность фиксируется полями «заказчик» и «создал», а руководитель исполнителя
+ * всё равно видит задачу в своём отделе и в отчёте.
+ */
 export async function assignableUserIds(user: SessionUser): Promise<number[] | 'ALL'> {
-  if (isDirector(user)) return 'ALL';
-  if (isChief(user)) return [user.id, ...(await subordinateIds(user))];
   if (isAdmin(user)) return [];
-  return [user.id];
+  return 'ALL';
 }
 
 /** Prisma-фильтр «какие задачи видит этот пользователь». */
@@ -65,7 +71,7 @@ export async function visibleTasksFilter(user: SessionUser): Promise<Prisma.Task
       OR: [
         { assigneeId: { in: ids } },
         { customerId: { in: ids } },
-        { customerId: user.id },
+        { coAssignees: { some: { userId: { in: ids } } } },
         { acceptorId: user.id },
         { createdById: user.id },
         ...(user.departmentId ? [{ departmentId: user.departmentId }] : []),
@@ -73,7 +79,13 @@ export async function visibleTasksFilter(user: SessionUser): Promise<Prisma.Task
     };
   }
   return {
-    OR: [{ assigneeId: user.id }, { customerId: user.id }, { acceptorId: user.id }],
+    OR: [
+      { assigneeId: user.id },
+      { customerId: user.id },
+      { acceptorId: user.id },
+      { createdById: user.id },
+      { coAssignees: { some: { userId: user.id } } },
+    ],
   };
 }
 
@@ -89,12 +101,17 @@ async function inScope(user: SessionUser, task: TaskLike) {
   return false;
 }
 
+export function isCoAssignee(user: SessionUser, task: TaskLike) {
+  return (task.coAssignees ?? []).some((item) => item.userId === user.id);
+}
+
 function isParticipant(user: SessionUser, task: TaskLike) {
   return (
     task.assigneeId === user.id ||
     task.customerId === user.id ||
     task.acceptorId === user.id ||
-    task.createdById === user.id
+    task.createdById === user.id ||
+    isCoAssignee(user, task)
   );
 }
 
@@ -109,8 +126,8 @@ export async function canEditTask(user: SessionUser, task: TaskLike) {
   if (isAdmin(user)) return false;
   if (isDirector(user)) return task.createdById === user.id; // директор правит только созданное им
   if (isChief(user)) return (await inScope(user, task)) || isParticipant(user, task);
-  // Бухгалтер правит задачу, если он исполнитель или сам её создал
-  return task.assigneeId === user.id || task.createdById === user.id;
+  // Рядовой сотрудник правит задачу, если он исполнитель, со-исполнитель или её автор
+  return task.assigneeId === user.id || task.createdById === user.id || isCoAssignee(user, task);
 }
 
 /** Заметки и вложения — любой участник задачи (и руководитель в своей зоне). */
@@ -123,7 +140,7 @@ export async function canCommentTask(user: SessionUser, task: TaskLike) {
 /** Отметить выполнение (сдать результат) может исполнитель или его руководитель. */
 export async function canSubmitTask(user: SessionUser, task: TaskLike) {
   if (isAdmin(user) || isDirector(user)) return false;
-  if (task.assigneeId === user.id) return true;
+  if (task.assigneeId === user.id || isCoAssignee(user, task)) return true;
   return isChief(user) && (await inScope(user, task));
 }
 
@@ -163,4 +180,9 @@ export async function reportScope(
 
 export function canManageUsers(user: SessionUser) {
   return isAdmin(user);
+}
+
+/** Отделы заводит администратор или директор — это структура компании, а не учётные записи. */
+export function canManageDepartments(user: SessionUser) {
+  return isAdmin(user) || isDirector(user);
 }

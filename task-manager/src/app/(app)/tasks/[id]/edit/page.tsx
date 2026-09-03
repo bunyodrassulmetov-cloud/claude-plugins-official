@@ -44,6 +44,7 @@ export default async function EditTaskPage({ params }: { params: Promise<{ id: s
           assigneeId: task.assigneeId,
           customerId: task.customerId,
           acceptorId: task.acceptorId ?? '',
+          coAssigneeIds: task.coAssignees.map((item) => item.userId),
           priority: task.priority,
           deadline: toInputValue(task.deadline, timezone),
         }}

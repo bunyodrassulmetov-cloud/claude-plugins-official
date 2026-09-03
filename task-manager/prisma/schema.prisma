@@ -83,6 +83,8 @@ model User {
   headedDepartment Department? @relation("DepartmentHead")
 
   assignedTasks Task[] @relation("Assignee")
+  coAssignments TaskAssignee[]
+  checkedItems  ChecklistItem[]
   orderedTasks  Task[] @relation("Customer")
   acceptedTasks Task[] @relation("Acceptor")
   createdTasks  Task[] @relation("CreatedBy")
@@ -132,16 +134,49 @@ model Task {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  notes       TaskNote[]
-  attachments Attachment[]
-  activity    TaskActivity[]
+  notes         TaskNote[]
+  attachments   Attachment[]
+  activity      TaskActivity[]
   notifications Notification[]
+  coAssignees   TaskAssignee[]
+  checklist     ChecklistItem[]
 
   @@index([assigneeId, deadline])
   @@index([departmentId, status])
   @@index([status, deadline])
   @@index([customerId])
   @@index([acceptorId])
+}
+
+/// Со-исполнители: помогают основному исполнителю.
+/// Задача остаётся закреплённой за одним ответственным (Task.assigneeId),
+/// иначе она посчиталась бы дважды в отчёте по сотрудникам.
+model TaskAssignee {
+  taskId Int
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  addedAt DateTime @default(now())
+
+  @@id([taskId, userId])
+  @@index([userId])
+}
+
+/// Пункт чек-листа (подзадача). Отдельной задачей не является:
+/// не имеет своего дедлайна и не попадает в отчёты — это разбивка работы внутри задачи.
+model ChecklistItem {
+  id       Int      @id @default(autoincrement())
+  taskId   Int
+  task     Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title    String
+  isDone   Boolean  @default(false)
+  doneById Int?
+  doneBy   User?    @relation(fields: [doneById], references: [id], onDelete: SetNull)
+  doneAt   DateTime?
+  position Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([taskId, position])
 }
 
 /// Заметки дополняются по ходу выполнения, история сохраняется.

@@ -17,6 +17,7 @@ import {
 } from '@/lib/permissions';
 import TaskActions from '@/components/TaskActions';
 import NoteComposer from '@/components/NoteComposer';
+import Checklist from '@/components/Checklist';
 import AttachmentPanel from '@/components/AttachmentPanel';
 import { PriorityBadge, StatusBadge } from '@/components/ui';
 
@@ -26,6 +27,8 @@ const ACTIVITY_LABELS: Record<string, string> = {
   created: 'создал(а) задачу',
   updated: 'изменил(а) задачу',
   status_changed: 'изменил(а) статус',
+  checklist_added: 'добавил(а) пункт чек-листа',
+  checklist_toggled: 'отметил(а) пункт чек-листа',
   note_added: 'добавил(а) заметку',
   attachment_added: 'прикрепил(а) файл',
 };
@@ -40,7 +43,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const { timezone } = await getSettings();
   const now = new Date();
 
-  const [notes, attachments, activity] = await Promise.all([
+  const [notes, attachments, activity, checklist] = await Promise.all([
     prisma.taskNote.findMany({
       where: { taskId },
       include: { author: { select: { fullName: true } } },
@@ -63,6 +66,11 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
       include: { actor: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
       take: 30,
+    }),
+    prisma.checklistItem.findMany({
+      where: { taskId },
+      include: { doneBy: { select: { fullName: true } } },
+      orderBy: [{ position: 'asc' }, { id: 'asc' }],
     }),
   ]);
 
@@ -116,6 +124,14 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
             <dt className="text-xs uppercase tracking-wide text-slate-400">Исполнитель</dt>
             <dd className="font-medium text-slate-800">{task.assignee.fullName}</dd>
           </div>
+          {task.coAssignees.length > 0 ? (
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-slate-400">Со-исполнители</dt>
+              <dd className="font-medium text-slate-800">
+                {task.coAssignees.map((item) => item.user.fullName).join(', ')}
+              </dd>
+            </div>
+          ) : null}
           <div>
             <dt className="text-xs uppercase tracking-wide text-slate-400">Заказчик</dt>
             <dd className="font-medium text-slate-800">{task.customer.fullName}</dd>
@@ -171,6 +187,25 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
           }}
         />
       </div>
+
+      <section className="card space-y-4 p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
+          Чек-лист
+          <span className="ml-2 font-normal normal-case tracking-normal text-slate-400">
+            разбивка задачи на шаги
+          </span>
+        </h2>
+        <Checklist
+          taskId={task.id}
+          canEdit={commentable}
+          items={checklist.map((item) => ({
+            id: item.id,
+            title: item.title,
+            isDone: item.isDone,
+            doneBy: item.doneBy?.fullName ?? null,
+          }))}
+        />
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="card space-y-4 p-5">
