@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { config } from '@/lib/config';
 
 export const metadata: Metadata = {
-  title: 'Task Manager — отдел бухгалтерии',
+  title: `Task Manager — ${config.companyName}`,
   description: 'Внутренний менеджер задач: постановка, контроль сроков и ежедневные отчёты',
 };
 

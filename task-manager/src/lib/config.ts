@@ -1,5 +1,7 @@
 /** Значения по умолчанию; часть из них переопределяется в таблице AppSetting. */
 export const config = {
+  /** Название компании в шапке, на странице входа и в заголовке вкладки. */
+  companyName: process.env.COMPANY_NAME ?? 'Компания Baraka N1',
   jwtSecret: process.env.JWT_SECRET ?? '',
   sessionTtlHours: Number(process.env.SESSION_TTL_HOURS ?? 12),
   /** Cookie только по HTTPS. Выключается для развёртывания во внутренней сети по http://. */

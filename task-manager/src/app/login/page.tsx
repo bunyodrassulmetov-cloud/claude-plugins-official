@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import LoginForm from '@/components/LoginForm';
+import { config } from '@/lib/config';
 
 export const metadata = { title: 'Вход — Task Manager' };
 
@@ -9,7 +10,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-semibold text-slate-900">Task Manager</h1>
-          <p className="mt-1 text-sm text-slate-500">Отдел бухгалтерии</p>
+          <p className="mt-1 text-sm text-slate-500">{config.companyName}</p>
         </div>
         <Suspense fallback={<div className="card h-64 animate-pulse" />}>
           <LoginForm />

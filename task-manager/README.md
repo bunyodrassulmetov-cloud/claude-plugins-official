@@ -112,6 +112,7 @@ docker compose exec app npm run db:seed   # опционально, демо-д�
 | Переменная | Назначение |
 |---|---|
 | `DATABASE_URL` | строка подключения к PostgreSQL |
+| `COMPANY_NAME` | название компании на странице входа, в подвале и заголовке вкладки |
 | `JWT_SECRET` | секрет подписи сессий, ≥32 символов (`openssl rand -base64 48`) |
 | `SESSION_TTL_HOURS` | время жизни сессии, по умолчанию 12 |
 | `COOKIE_SECURE` | `true` — cookie только по HTTPS (обязательно в интернете); `false` — для внутренней сети по `http://` |

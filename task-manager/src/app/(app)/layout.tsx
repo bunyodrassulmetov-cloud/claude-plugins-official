@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth';
+import { config } from '@/lib/config';
 import { unreadCount } from '@/lib/notifications';
 import { isManager, isAdmin, ROLE_LABELS } from '@/lib/permissions';
 import NavBar from '@/components/NavBar';
@@ -39,7 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       />
       <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       <footer className="mx-auto w-full max-w-6xl px-4 pb-8 text-xs text-slate-400 sm:px-6 lg:px-8">
-        Task Manager · внутренний инструмент отдела бухгалтерии ·{' '}
+        Task Manager · {config.companyName} ·{' '}
         <Link className="underline" href="/notifications">
           уведомления
         </Link>
