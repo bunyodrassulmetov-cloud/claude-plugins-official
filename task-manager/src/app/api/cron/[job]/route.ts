@@ -6,6 +6,7 @@ import { config } from '@/lib/config';
 import { markOverdueTasks } from '@/lib/jobs/overdue';
 import { sendDeadlineReminders } from '@/lib/jobs/reminders';
 import { generateDailyReports } from '@/lib/jobs/reports';
+import { runTaskTemplates } from '@/lib/jobs/templates';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,8 +33,15 @@ async function runJob(request: NextRequest, paramsPromise: Promise<{ job: string
 
     const { job } = await paramsPromise;
     switch (job) {
-      case 'rollover':
-        return ok(await markOverdueTasks());
+      case 'rollover': {
+        // Один ночной проход: сначала создаём задачи по шаблонам, потом считаем просрочку.
+        // Бесплатный тариф Vercel даёт всего два расписания, поэтому джобы объединены.
+        const templates = await runTaskTemplates();
+        const overdue = await markOverdueTasks();
+        return ok({ ...overdue, ...templates });
+      }
+      case 'templates':
+        return ok(await runTaskTemplates());
       case 'reminders':
         return ok(await sendDeadlineReminders());
       case 'daily-report':

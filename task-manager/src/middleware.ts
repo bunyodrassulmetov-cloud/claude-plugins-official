@@ -35,6 +35,7 @@ export const config = {
   matcher: [
     '/dashboard/:path*',
     '/company/:path*',
+    '/templates/:path*',
     '/tasks/:path*',
     '/reports/:path*',
     '/notifications/:path*',
@@ -48,6 +49,7 @@ export const config = {
     '/api/notifications/:path*',
     '/api/attachments/:path*',
     '/api/checklist/:path*',
+    '/api/templates/:path*',
     '/api/auth/password',
     '/api/settings',
   ],

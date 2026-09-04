@@ -19,6 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       : [
           { href: '/dashboard', label: 'Мой день' },
           { href: '/tasks', label: 'Задачи' },
+          { href: '/templates', label: 'Повторяющиеся' },
           { href: '/company', label: 'Компания' },
         ]),
     ...(isManager(user) ? [{ href: '/reports', label: 'Отчёты' }] : []),

@@ -34,6 +34,26 @@ export const taskCreateSchema = z.object({
 
 export const taskUpdateSchema = taskCreateSchema.partial().omit({ note: true });
 
+export const recurrenceEnum = z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY']);
+
+export const templateSchema = z.object({
+  title: z.string().trim().min(3, 'Название — минимум 3 символа').max(200),
+  description: z.string().trim().max(5000).optional().nullable(),
+  assigneeId: z.coerce.number().int().positive('Выберите исполнителя'),
+  customerId: z.coerce.number().int().positive('Выберите заказчика'),
+  acceptorId: z.coerce.number().int().positive().optional().nullable(),
+  coAssigneeIds: z.array(z.coerce.number().int().positive()).max(15).optional(),
+  priority: priorityEnum.default('MEDIUM'),
+  checklist: z.array(z.string().trim().min(1).max(300)).max(30).optional(),
+  recurrence: recurrenceEnum,
+  dayOfWeek: z.coerce.number().int().min(1).max(7).optional().nullable(),
+  dayOfMonth: z.coerce.number().int().min(1).max(28).optional().nullable(),
+  dueHour: z.coerce.number().int().min(0).max(23).default(18),
+  dueMinute: z.coerce.number().int().min(0).max(59).default(0),
+  leadDays: z.coerce.number().int().min(0).max(30).default(0),
+  isActive: z.boolean().optional(),
+});
+
 export const taskActionSchema = z.object({
   action: z.enum(['submit', 'accept', 'reject', 'reopen', 'cancel', 'complete']),
   comment: z.string().trim().max(2000).optional().nullable(),

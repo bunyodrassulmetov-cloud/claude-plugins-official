@@ -45,6 +45,14 @@ enum NotificationType {
   REPORT_READY
 }
 
+/// Как часто повторяется шаблон задачи.
+enum Recurrence {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+}
+
 enum ReportPeriod {
   DAILY
   WEEKLY
@@ -85,6 +93,10 @@ model User {
   headedDepartment Department? @relation("DepartmentHead")
 
   assignedTasks Task[] @relation("Assignee")
+  templatesAssigned TaskTemplate[] @relation("TemplateAssignee")
+  templatesOrdered  TaskTemplate[] @relation("TemplateCustomer")
+  templatesAccepted TaskTemplate[] @relation("TemplateAcceptor")
+  templatesCreated  TaskTemplate[] @relation("TemplateAuthor")
   coAssignments TaskAssignee[]
   checkedItems  ChecklistItem[]
   orderedTasks  Task[] @relation("Customer")
@@ -277,6 +289,47 @@ model ReportItem {
   unfinished   Json
 
   @@unique([reportId, userId])
+}
+
+/// Шаблон повторяющейся задачи: НДС ежеквартально, зарплата ежемесячно и т.п.
+/// Планировщик создаёт из него обычную задачу к очередному сроку.
+model TaskTemplate {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+
+  assigneeId    Int
+  assignee      User    @relation("TemplateAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
+  customerId    Int
+  customer      User    @relation("TemplateCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+  acceptorId    Int?
+  acceptor      User?   @relation("TemplateAcceptor", fields: [acceptorId], references: [id], onDelete: SetNull)
+  coAssigneeIds Int[] /// со-исполнители: список хранится прямо здесь, отдельная таблица тут излишня
+  createdById   Int
+  createdBy     User    @relation("TemplateAuthor", fields: [createdById], references: [id], onDelete: Cascade)
+
+  priority Priority @default(MEDIUM)
+  /// Пункты чек-листа, которые получит каждая созданная задача
+  checklist String[]
+
+  recurrence Recurrence
+  dayOfWeek  Int? /// 1 (пн) — 7 (вс), для WEEKLY
+  dayOfMonth Int? /// 1—28, для MONTHLY и QUARTERLY: день ограничен 28-м, чтобы не терять февраль
+  dueHour    Int  @default(18)
+  dueMinute  Int  @default(0)
+  /// За сколько дней до срока создавать задачу, чтобы к ней успели приступить
+  leadDays   Int  @default(0)
+
+  isActive     Boolean   @default(true)
+  /// Срок следующей задачи. Планировщик сравнивает с ним и сдвигает вперёд — так
+  /// повторный запуск не создаёт дубликат.
+  nextDeadline DateTime
+  lastCreatedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, nextDeadline])
 }
 
 /// Счётчик неудачных входов: защита от перебора паролей.
