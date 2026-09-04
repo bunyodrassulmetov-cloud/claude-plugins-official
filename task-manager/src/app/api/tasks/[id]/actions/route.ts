@@ -10,6 +10,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id } = await params;
     const { data, error } = parseBody(taskActionSchema, await request.json());
     if (!data) return fail(error ?? 'Некорректное действие', 422);
-    return ok(await applyTaskAction(user, parseId(id), data.action, data.comment));
+    return ok(await applyTaskAction(user, parseId(id), data.action, data.comment, data.days));
   });
 }

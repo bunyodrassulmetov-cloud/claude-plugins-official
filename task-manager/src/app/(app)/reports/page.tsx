@@ -105,6 +105,9 @@ export default async function ReportsPage({
             </span>
             {report.department ? <span>· {report.department.name}</span> : <span>· вся компания</span>}
             <span>· сформирован {formatDateTime(report.generatedAt, timezone)}</span>
+            <a className="btn-secondary ml-auto" href={`/api/reports/${report.id}/export`}>
+              Выгрузить для Excel
+            </a>
           </div>
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">

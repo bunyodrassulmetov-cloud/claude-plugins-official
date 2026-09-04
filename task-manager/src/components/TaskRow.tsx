@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { TaskRowData } from '@/lib/tasks';
 import { PRIORITY_BAR, PRIORITY_LABELS, StatusBadge } from './ui';
@@ -10,7 +11,28 @@ import { PRIORITY_BAR, PRIORITY_LABELS, StatusBadge } from './ui';
  * Стрелка раскрывает подробности прямо в списке, клик по названию открывает задачу.
  */
 export default function TaskRow({ task }: { task: TaskRowData }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  /** Быстрое действие прямо из строки — без перехода в карточку задачи. */
+  async function run(action: string, extra?: Record<string, unknown>) {
+    setBusy(action);
+    setError(null);
+    const response = await fetch(`/api/tasks/${task.id}/actions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...extra }),
+    });
+    setBusy(null);
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      setError(payload.error ?? 'Не удалось выполнить действие');
+      return;
+    }
+    router.refresh();
+  }
 
   return (
     <li className="border-b border-slate-100 last:border-b-0">
@@ -71,7 +93,52 @@ export default function TaskRow({ task }: { task: TaskRowData }) {
         <span className="hidden shrink-0 sm:block">
           <StatusBadge status={task.status} overdue={task.overdue} />
         </span>
+
+        <span className="flex shrink-0 items-center gap-1">
+          {task.canSubmit ? (
+            <button
+              type="button"
+              disabled={!!busy}
+              onClick={() => run('submit')}
+              title={task.hasAcceptor ? 'Сдать на приёмку' : 'Отметить выполненной'}
+              aria-label={task.hasAcceptor ? 'Сдать на приёмку' : 'Отметить выполненной'}
+              className="rounded p-1 text-slate-300 transition hover:bg-emerald-50 hover:text-emerald-600"
+            >
+              ✔
+            </button>
+          ) : null}
+          {task.canAccept ? (
+            <button
+              type="button"
+              disabled={!!busy}
+              onClick={() => run('accept')}
+              title="Принять результат"
+              aria-label="Принять результат"
+              className="rounded p-1 text-amber-500 transition hover:bg-emerald-50 hover:text-emerald-600"
+            >
+              ✔
+            </button>
+          ) : null}
+          {task.canPostpone ? (
+            <button
+              type="button"
+              disabled={!!busy}
+              onClick={() => run('postpone', { days: 1 })}
+              title="Перенести срок на день"
+              aria-label="Перенести срок на день"
+              className="rounded p-1 text-slate-300 transition hover:bg-slate-200 hover:text-slate-700"
+            >
+              →
+            </button>
+          ) : null}
+        </span>
       </div>
+
+      {error ? (
+        <p className="px-4 pb-2 text-xs text-red-600" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       {open ? (
         <div className="space-y-3 bg-slate-50 px-4 py-3 pl-10 text-sm sm:pl-12">

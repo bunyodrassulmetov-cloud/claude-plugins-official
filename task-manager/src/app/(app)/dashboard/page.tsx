@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
 import { getSettings } from '@/lib/settings';
 import { isAdmin, isManager } from '@/lib/permissions';
-import { groupTasks, listTasks, taskInclude, toRowData } from '@/lib/tasks';
+import { groupTasks, listTasks, taskInclude, withRowAbilities } from '@/lib/tasks';
 import TaskSection from '@/components/TaskSection';
 import { EmptyState, StatCard } from '@/components/ui';
 
@@ -26,7 +26,7 @@ export default async function DashboardPage({
 
   const tasks = await listTasks(user, { view: 'today', onlyMine: !teamView });
   const groups = groupTasks(tasks, now, timezone);
-  const rows = (list: typeof tasks) => list.map((task) => toRowData(task, timezone, now));
+  const rows = (list: typeof tasks) => withRowAbilities(user, list, timezone, now);
   const { overdue, today, upcoming } = groups;
   const done = groups.done;
 
@@ -84,7 +84,7 @@ export default async function DashboardPage({
         <TaskSection
           title="Ждут вашей приёмки"
           hint="исполнитель отчитался о выполнении"
-          tasks={rows(awaitingMyAcceptance)}
+          tasks={await rows(awaitingMyAcceptance)}
           tone="default"
         />
       ) : null}
@@ -92,12 +92,12 @@ export default async function DashboardPage({
       <TaskSection
         title="Просрочено"
         hint="перенесено с прошлых дней"
-        tasks={rows(overdue)}
+        tasks={await rows(overdue)}
         tone="danger"
       />
-      <TaskSection title="На сегодня" tasks={rows(today)} />
-      <TaskSection title="Ближайшие" tasks={rows(upcoming)} />
-      <TaskSection title="Выполнено" tasks={rows(done)} tone="success" />
+      <TaskSection title="На сегодня" tasks={await rows(today)} />
+      <TaskSection title="Ближайшие" tasks={await rows(upcoming)} />
+      <TaskSection title="Выполнено" tasks={await rows(done)} tone="success" />
 
       {tasks.length === 0 && awaitingMyAcceptance.length === 0 ? (
         <EmptyState

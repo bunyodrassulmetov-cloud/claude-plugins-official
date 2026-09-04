@@ -9,10 +9,12 @@ type NavLink = { href: string; label: string };
 export default function NavBar({
   links,
   unread,
+  awaitingAcceptance,
   user,
 }: {
   links: NavLink[];
   unread: number;
+  awaitingAcceptance: number;
   user: { fullName: string; role: string; department: string | null };
 }) {
   const pathname = usePathname();
@@ -49,6 +51,15 @@ export default function NavBar({
         </div>
 
         <div className="flex items-center gap-2">
+          {awaitingAcceptance > 0 ? (
+            <Link
+              href="/dashboard"
+              className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100"
+              title="Задачи, которые ждут вашей приёмки"
+            >
+              на приёмке: {awaitingAcceptance}
+            </Link>
+          ) : null}
           <Link
             href="/notifications"
             className="relative rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"

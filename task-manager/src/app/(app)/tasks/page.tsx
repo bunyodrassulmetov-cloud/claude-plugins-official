@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
 import { getSettings } from '@/lib/settings';
 import { assignableUserIds, isAdmin, isManager } from '@/lib/permissions';
-import { groupTasks, listTasks, toRowData, type TaskFilters as Filters } from '@/lib/tasks';
+import { groupTasks, listTasks, withRowAbilities, type TaskFilters as Filters } from '@/lib/tasks';
 import TaskFilters from '@/components/TaskFilters';
 import TaskSection from '@/components/TaskSection';
 import { EmptyState } from '@/components/ui';
@@ -35,7 +35,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
 
   const tasks = await listTasks(user, filters, 500);
   const { overdue, today, upcoming, done } = groupTasks(tasks, now, timezone);
-  const rows = (list: typeof tasks) => list.map((task) => toRowData(task, timezone, now));
+  const rows = (list: typeof tasks) => withRowAbilities(user, list, timezone, now);
 
   const allowed = await assignableUserIds(user);
   const [people, departments] = await Promise.all([
@@ -75,10 +75,10 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         departments={departments.map((d) => ({ value: String(d.id), label: d.name }))}
       />
 
-      <TaskSection title="Просрочено" tasks={rows(overdue)} tone="danger" />
-      <TaskSection title="Сегодня" tasks={rows(today)} />
-      <TaskSection title="Предстоящие" tasks={rows(upcoming)} />
-      <TaskSection title="Закрытые" tasks={rows(done)} tone="success" />
+      <TaskSection title="Просрочено" tasks={await rows(overdue)} tone="danger" />
+      <TaskSection title="Сегодня" tasks={await rows(today)} />
+      <TaskSection title="Предстоящие" tasks={await rows(upcoming)} />
+      <TaskSection title="Закрытые" tasks={await rows(done)} tone="success" />
 
       {tasks.length === 0 ? (
         <EmptyState title="Ничего не найдено" hint="Измените фильтры или сбросьте их." />

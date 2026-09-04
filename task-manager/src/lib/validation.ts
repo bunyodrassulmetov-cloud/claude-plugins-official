@@ -55,8 +55,10 @@ export const templateSchema = z.object({
 });
 
 export const taskActionSchema = z.object({
-  action: z.enum(['submit', 'accept', 'reject', 'reopen', 'cancel', 'complete']),
+  action: z.enum(['submit', 'accept', 'reject', 'reopen', 'cancel', 'complete', 'postpone']),
   comment: z.string().trim().max(2000).optional().nullable(),
+  /** Для postpone: на сколько дней сдвинуть срок. */
+  days: z.coerce.number().int().min(1).max(30).optional(),
 });
 
 export const checklistCreateSchema = z.object({

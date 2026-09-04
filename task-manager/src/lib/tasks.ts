@@ -141,12 +141,18 @@ export type TaskRowData = {
   checklistDone: number;
   checklistTotal: number;
   carryOverDays: number;
+  /** Быстрые действия в строке: считаются на сервере по тем же правилам, что и внутри задачи. */
+  canSubmit: boolean;
+  canAccept: boolean;
+  canPostpone: boolean;
+  hasAcceptor: boolean;
 };
 
 export function toRowData(
   task: TaskWithRelations,
   timezone: string,
   now = new Date(),
+  abilities: { canSubmit?: boolean; canAccept?: boolean; canPostpone?: boolean } = {},
 ): TaskRowData {
   const closed = task.status === 'DONE' || task.status === 'CANCELLED';
   return {
@@ -170,7 +176,30 @@ export function toRowData(
     checklistDone: task.checklist.filter((item) => item.isDone).length,
     checklistTotal: task.checklist.length,
     carryOverDays: task.carryOverDays,
+    canSubmit: Boolean(abilities.canSubmit) && task.status === 'IN_PROGRESS',
+    canAccept: Boolean(abilities.canAccept) && task.status === 'PENDING_ACCEPTANCE',
+    canPostpone: Boolean(abilities.canPostpone) && !closed,
+    hasAcceptor: task.acceptorId !== null,
   };
+}
+
+/** Считает права на быстрые действия для списка задач одним проходом. */
+export async function withRowAbilities(
+  user: SessionUser,
+  tasks: TaskWithRelations[],
+  timezone: string,
+  now = new Date(),
+) {
+  const { canAcceptTask, canEditTask, canSubmitTask } = await import('./permissions');
+  return Promise.all(
+    tasks.map(async (task) =>
+      toRowData(task, timezone, now, {
+        canSubmit: await canSubmitTask(user, task),
+        canAccept: canAcceptTask(user, task),
+        canPostpone: await canEditTask(user, task),
+      }),
+    ),
+  );
 }
 
 export async function logActivity(

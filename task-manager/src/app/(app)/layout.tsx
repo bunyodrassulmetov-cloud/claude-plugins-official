@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth';
 import { config } from '@/lib/config';
+import { prisma } from '@/lib/db';
 import { unreadCount } from '@/lib/notifications';
 import { isManager, isAdmin, ROLE_LABELS } from '@/lib/permissions';
 import NavBar from '@/components/NavBar';
@@ -12,7 +13,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const unread = await unreadCount(user.id);
+  const [unread, awaitingAcceptance] = await Promise.all([
+    unreadCount(user.id),
+    // Сколько задач ждёт приёмки лично от этого человека — видно, не заходя в список
+    isAdmin(user)
+      ? Promise.resolve(0)
+      : prisma.task.count({
+          where: {
+            status: 'PENDING_ACCEPTANCE',
+            OR: [{ acceptorId: user.id }, { acceptorId: null, customerId: user.id }],
+          },
+        }),
+  ]);
   const links = [
     ...(isAdmin(user)
       ? []
@@ -37,6 +49,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <NavBar
         links={links}
         unread={unread}
+        awaitingAcceptance={awaitingAcceptance}
         user={{ fullName: user.fullName, role: ROLE_LABELS[user.role], department: user.departmentName }}
       />
       <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">{children}</main>

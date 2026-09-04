@@ -180,7 +180,14 @@ export async function updateTask(user: SessionUser, id: number, input: Partial<T
   return updated;
 }
 
-export type TaskAction = 'submit' | 'accept' | 'reject' | 'reopen' | 'cancel' | 'complete';
+export type TaskAction =
+  | 'submit'
+  | 'accept'
+  | 'reject'
+  | 'reopen'
+  | 'cancel'
+  | 'complete'
+  | 'postpone';
 
 /**
  * Переходы статусов.
@@ -194,6 +201,7 @@ export async function applyTaskAction(
   id: number,
   action: TaskAction,
   comment?: string | null,
+  days?: number,
 ) {
   const task = await getTaskOr404(id);
   const now = new Date();
@@ -241,6 +249,23 @@ export async function applyTaskAction(
       type: 'TASK_REJECTED',
       title: 'Результат возвращён на доработку',
       body: `«${task.title}»: ${comment?.trim() || 'без комментария'}.`,
+    });
+  } else if (action === 'postpone') {
+    if (!(await canEditTask(user, task))) throw new HttpError(403, 'Нет прав переносить срок');
+    if (task.status === 'DONE' || task.status === 'CANCELLED') {
+      throw new HttpError(409, 'Задача уже закрыта');
+    }
+    const shifted = new Date(task.deadline.getTime() + (days ?? 1) * 86_400_000);
+    data = {
+      deadline: shifted,
+      isOverdue: shifted < now,
+      ...(shifted >= now ? { overdueSince: null, carryOverDays: 0 } : {}),
+    };
+    messages.push({
+      userId: task.assigneeId,
+      type: 'TASK_UPDATED',
+      title: 'Срок задачи перенесён',
+      body: `«${task.title}» — новый срок ${formatDateTime(shifted)}.`,
     });
   } else if (action === 'reopen') {
     if (!(await canEditTask(user, task))) throw new HttpError(403, 'Нет прав возвращать задачу в работу');
