@@ -25,14 +25,15 @@ export async function GET(request: NextRequest) {
       const allowed = await assignableUserIds(user);
       const users = await prisma.user.findMany({
         where: { isActive: true, ...(allowed === 'ALL' ? {} : { id: { in: allowed } }) },
-        select: publicSelect,
+        select: { ...publicSelect, email: false },
         orderBy: { fullName: 'asc' },
       });
       return ok(users);
     }
+    // Почтовые адреса коллег видит только администратор — остальным они не нужны
     const users = await prisma.user.findMany({
       where: canManageUsers(user) ? {} : { isActive: true },
-      select: publicSelect,
+      select: canManageUsers(user) ? publicSelect : { ...publicSelect, email: false },
       orderBy: [{ isActive: 'desc' }, { fullName: 'asc' }],
     });
     return ok(users);

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { HttpError, requireUser } from '@/lib/auth';
 import { fail, handle, ok } from '@/lib/api';
-import { canManageDepartments, canManageUsers } from '@/lib/permissions';
+import { canManageDepartments } from '@/lib/permissions';
 import { departmentSchema, parseBody } from '@/lib/validation';
 
 export async function GET() {
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   return handle(async () => {
     const user = await requireUser();
-    if (!canManageUsers(user)) throw new HttpError(403, 'Недостаточно прав');
+    if (!canManageDepartments(user)) throw new HttpError(403, 'Недостаточно прав');
     const body = (await request.json()) as { id?: number };
     if (!body.id) return fail('Не указан отдел', 422);
     const { data, error } = parseBody(departmentSchema.partial(), body);

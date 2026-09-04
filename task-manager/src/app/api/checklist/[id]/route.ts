@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { HttpError, requireUser } from '@/lib/auth';
-import { fail, handle, ok } from '@/lib/api';
+import { fail, handle, ok, parseId } from '@/lib/api';
 import { canCommentTask } from '@/lib/permissions';
 import { logActivity, taskInclude } from '@/lib/tasks';
 import { checklistUpdateSchema, parseBody } from '@/lib/validation';
@@ -21,7 +21,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   return handle(async () => {
     const user = await requireUser();
     const { id } = await params;
-    const item = await loadItem(Number(id));
+    const item = await loadItem(parseId(id));
     if (!(await canCommentTask(user, item.task))) throw new HttpError(403, 'Нет прав менять чек-лист');
 
     const { data, error } = parseBody(checklistUpdateSchema, await request.json());
@@ -54,7 +54,7 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
   return handle(async () => {
     const user = await requireUser();
     const { id } = await params;
-    const item = await loadItem(Number(id));
+    const item = await loadItem(parseId(id));
     if (!(await canCommentTask(user, item.task))) throw new HttpError(403, 'Нет прав менять чек-лист');
     await prisma.checklistItem.delete({ where: { id: item.id } });
     return ok({ success: true });

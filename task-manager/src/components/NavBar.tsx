@@ -61,13 +61,13 @@ export default function NavBar({
               </span>
             ) : null}
           </Link>
-          <div className="hidden text-right sm:block">
+          <Link href="/profile" className="hidden rounded-lg px-2 py-1 text-right hover:bg-slate-100 sm:block">
             <p className="text-sm font-medium text-slate-800">{user.fullName}</p>
             <p className="text-xs text-slate-500">
               {user.role}
               {user.department ? ` · ${user.department}` : ''}
             </p>
-          </div>
+          </Link>
           <button className="btn-secondary" onClick={logout} type="button">
             Выйти
           </button>

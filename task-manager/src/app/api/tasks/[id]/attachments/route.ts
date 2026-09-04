@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { HttpError, requireUser } from '@/lib/auth';
-import { handle, ok } from '@/lib/api';
+import { handle, ok, parseId } from '@/lib/api';
 import { canCommentTask } from '@/lib/permissions';
 import { getTaskForUser } from '@/lib/task-actions';
 import { logActivity } from '@/lib/tasks';
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   return handle(async () => {
     const user = await requireUser();
     const { id } = await params;
-    const task = await getTaskForUser(user, Number(id));
+    const task = await getTaskForUser(user, parseId(id));
     if (!(await canCommentTask(user, task))) throw new HttpError(403, 'Нет прав прикреплять файлы');
 
     const form = await request.formData();

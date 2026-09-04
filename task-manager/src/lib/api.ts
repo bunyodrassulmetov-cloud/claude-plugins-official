@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
 import { HttpError } from './auth';
 
+/** Идентификатор из URL. Мусор вместо числа — это «не найдено», а не сбой сервера. */
+export function parseId(value: string) {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) throw new HttpError(404, 'Не найдено');
+  return id;
+}
+
 export function ok<T>(data: T, status = 200) {
   return NextResponse.json(data, { status });
 }

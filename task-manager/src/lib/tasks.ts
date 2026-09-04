@@ -7,9 +7,10 @@ import { dayBounds, formatDateTime, humanizeDeadline } from './dates';
 import { getSettings } from './settings';
 
 export const taskInclude = {
-  assignee: { select: { id: true, fullName: true, email: true } },
-  customer: { select: { id: true, fullName: true, email: true } },
-  acceptor: { select: { id: true, fullName: true, email: true } },
+  // email намеренно не выбираем: в интерфейсе задач он не нужен
+  assignee: { select: { id: true, fullName: true } },
+  customer: { select: { id: true, fullName: true } },
+  acceptor: { select: { id: true, fullName: true } },
   department: { select: { id: true, name: true } },
   coAssignees: { select: { userId: true, user: { select: { id: true, fullName: true } } } },
   // Пункты чек-листа нужны только для счётчика «сделано из всего» в списке

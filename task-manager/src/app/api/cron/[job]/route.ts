@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { NextRequest } from 'next/server';
 import { handle, ok } from '@/lib/api';
 import { HttpError } from '@/lib/auth';
@@ -13,11 +14,19 @@ export const dynamic = 'force-dynamic';
  *   curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://host/api/cron/daily-report
  * Те же джобы запускает встроенный воркер (npm run worker).
  */
+/** Сравнение за постоянное время: обычное !== подсказывает секрет по времени ответа. */
+function secretsMatch(provided: string, expected: string) {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
 async function runJob(request: NextRequest, paramsPromise: Promise<{ job: string }>) {
   return handle(async () => {
     const header = request.headers.get('authorization') ?? '';
     const token = header.replace(/^Bearer\s+/i, '');
-    if (!config.cronSecret || token !== config.cronSecret) {
+    if (!config.cronSecret || !secretsMatch(token, config.cronSecret)) {
       throw new HttpError(401, 'Неверный CRON_SECRET');
     }
 

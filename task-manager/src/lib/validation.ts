@@ -9,6 +9,17 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Введите пароль'),
 });
 
+export const passwordChangeSchema = z.object({
+  currentPassword: z.string().min(1, 'Введите текущий пароль'),
+  newPassword: z
+    .string()
+    .min(8, 'Новый пароль — минимум 8 символов')
+    .max(100)
+    .refine((value) => /[a-zA-Zа-яА-Я]/.test(value) && /\d/.test(value), {
+      message: 'Пароль должен содержать буквы и цифры',
+    }),
+});
+
 export const taskCreateSchema = z.object({
   title: z.string().trim().min(3, 'Название — минимум 3 символа').max(200),
   description: z.string().trim().max(5000).optional().nullable(),

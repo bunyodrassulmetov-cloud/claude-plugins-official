@@ -38,6 +38,7 @@ export const config = {
     '/tasks/:path*',
     '/reports/:path*',
     '/notifications/:path*',
+    '/profile/:path*',
     '/admin/:path*',
     '/login',
     '/api/tasks/:path*',
@@ -47,6 +48,7 @@ export const config = {
     '/api/notifications/:path*',
     '/api/attachments/:path*',
     '/api/checklist/:path*',
+    '/api/auth/password',
     '/api/settings',
   ],
 };

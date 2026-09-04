@@ -277,6 +277,16 @@ model ReportItem {
   @@unique([reportId, userId])
 }
 
+/// Счётчик неудачных входов: защита от перебора паролей.
+/// Ключ — «email|IP», чтобы атакующий не мог заблокировать чужую учётку со своего адреса.
+model LoginAttempt {
+  key         String    @id
+  failures    Int       @default(0)
+  firstFailAt DateTime  @default(now())
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+}
+
 /// Настройки приложения (время отчёта, таймзона, окно напоминаний).
 model AppSetting {
   key       String   @id
