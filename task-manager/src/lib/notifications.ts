@@ -1,6 +1,7 @@
 import 'server-only';
 import type { NotificationType } from '@prisma/client';
 import { prisma } from './db';
+import { sendTelegramNotifications } from './telegram';
 
 type NotifyInput = {
   userId: number;
@@ -17,6 +18,8 @@ export async function notify(input: NotifyInput | NotifyInput[], actorId?: numbe
   );
   if (items.length === 0) return;
   await prisma.notification.createMany({ data: items });
+  // Телеграм — дополнительный канал: сбой доставки не должен ломать основную операцию
+  await sendTelegramNotifications(items).catch((error) => console.error('[notify]', error));
 }
 
 export async function unreadCount(userId: number) {

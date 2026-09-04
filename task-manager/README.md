@@ -122,6 +122,9 @@ docker compose exec app npm run db:seed   # опционально, демо-д�
 | `APP_TIMEZONE` | рабочий часовой пояс — в нём считаются сутки, дедлайны и отчёты |
 | `DAILY_REPORT_TIME` | время ежедневной сводки, `ЧЧ:ММ` |
 | `CRON_SECRET` | секрет для вызова `/api/cron/*` |
+| `TELEGRAM_BOT_TOKEN` | токен бота от @BotFather; без него уведомления остаются только в приложении |
+| `TELEGRAM_BOT_NAME` | имя бота для ссылки в «Профиле», например `@baraka_tasks_bot` |
+| `TELEGRAM_WEBHOOK_SECRET` | строка, которую Telegram присылает в заголовке вебхука |
 | `APP_URL` | адрес приложения для воркера (по умолчанию `http://localhost:3000`) |
 
 Часовой пояс, время отчёта и окно напоминаний дополнительно меняются в интерфейсе
@@ -159,7 +162,8 @@ docker compose exec app npm run db:seed   # опционально, демо-д�
 ```
 departments   id, name, head_id → users
 users         id, email, password_hash, full_name, position, role,
-              department_id, manager_id, is_active
+              department_id, manager_id, is_active, password_changed_at,
+              telegram_chat_id, telegram_link_code
 tasks         id, title, description,
               assignee_id (исполнитель), customer_id (заказчик),
               acceptor_id (принимающий, nullable), created_by_id, department_id,
@@ -175,6 +179,10 @@ notifications id, user_id, type, task_id, title, body, is_read
 reports       id, period_type, period_start, period_end, department_id, recipient_id, totals
 report_items  id, report_id, user_id, planned, completed, pending, overdue,
               carried_over, unfinished (jsonb)
+task_templates id, title, assignee_id, customer_id, acceptor_id, co_assignee_ids,
+              priority, checklist, recurrence, day_of_week, day_of_month,
+              due_hour, due_minute, lead_days, next_deadline, is_active
+login_attempts key (email|ip), failures, first_fail_at, locked_until
 app_settings  key, value
 ```
 
@@ -236,7 +244,39 @@ curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://tm.example.ru/api/c
 Отправка отчётов по email намеренно не реализована — сводка доступна в интерфейсе
 и приходит уведомлением. Точка расширения: `notify(...)` в `src/lib/jobs/reports.ts`.
 
-## 7. Вложения
+## 7. Уведомления в Telegram
+
+Необязательный канал: приложение всегда показывает уведомления у себя, а Telegram
+дублирует их в чат — там их читают быстрее.
+
+1. Создайте бота у **@BotFather**, скопируйте токен.
+2. Задайте `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_NAME` и произвольный `TELEGRAM_WEBHOOK_SECRET`.
+3. Один раз зарегистрируйте адрес вебхука:
+
+```bash
+curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+  -d "url=https://ваш-адрес/api/telegram/webhook" \
+  -d "secret_token=$TELEGRAM_WEBHOOK_SECRET"
+```
+
+4. Каждый сотрудник открывает «Профиль» → «Получить код привязки» и отправляет боту
+   `/start КОД`. Код одноразовый; отвязать чат можно там же.
+
+Вебхук всегда отвечает `200`, даже на чужие запросы: иначе Telegram бесконечно повторяет
+доставку. Сбой отправки не влияет на работу приложения — уведомление уже сохранено в базе.
+
+## 8. Повторяющиеся задачи
+
+Раздел «Повторяющиеся» — шаблоны для цикличных дел (НДС раз в квартал, зарплата ежемесячно,
+кассовая книга еженедельно). Шаблон хранит всё, что нужно задаче, плюс расписание и чек-лист;
+планировщик создаёт из него обычную задачу.
+
+Шаблон помнит срок следующей задачи и сдвигает его сразу после создания — повторный запуск
+джоба ничего не задваивает, а простоявший несколько дней планировщик догоняет пропущенные
+сроки (не более 12 за раз). Числа месяца ограничены 28-м, иначе февраль «съедал» бы срок.
+Удаление шаблона не трогает уже созданные задачи.
+
+## 9. Вложения
 
 Файлы лежат на диске в `UPLOAD_DIR/tasks/<id>/<uuid>.<ext>`, в БД — только метаданные.
 Имя на диске случайное, оригинальное хранится в базе, поэтому имя файла не влияет на путь.
@@ -244,19 +284,19 @@ curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://tm.example.ru/api/c
 каталога нет. Разрешены `.pdf .jpg .jpeg .png .tif .tiff .doc .docx .xls .xlsx .csv .txt .rtf .zip`,
 до 20 МБ на файл; проверяется и расширение, и MIME-тип.
 
-## 8. Структура проекта
+## 10. Структура проекта
 
 ```
 prisma/schema.prisma      схема БД и миграции
 prisma/seed.ts            демо-данные
 worker/cron.ts            планировщик
-src/lib/                  auth, permissions, tasks, storage, settings, jobs/
+src/lib/                  auth, permissions, tasks, storage, settings, telegram, recurrence, jobs/
 src/app/api/              REST: auth, tasks, attachments, reports, users, departments, cron
 src/app/(app)/            интерфейс: dashboard, tasks, reports, notifications, admin
 src/components/           формы, карточки задач, таблицы
 ```
 
-## 9. Проверка
+## 11. Проверка
 
 ```bash
 npm run typecheck   # tsc --noEmit
