@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash: await hashPassword(data.newPassword) },
+      data: { passwordHash: await hashPassword(data.newPassword), passwordChangedAt: new Date() },
     });
     // Выдаём свежий токен, чтобы текущая вкладка не осталась со старой сессией
     await createSessionCookie({ ...user, role: user.role });

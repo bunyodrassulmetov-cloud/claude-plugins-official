@@ -8,6 +8,8 @@ export type SessionPayload = {
   email: string;
   role: string;
   fullName: string;
+  /** Момент выпуска токена (сек). Нужен, чтобы отозвать сессии при смене пароля. */
+  issuedAt?: number;
 };
 
 function secretKey() {
@@ -36,6 +38,7 @@ export async function verifySession(token: string): Promise<SessionPayload | nul
       email: String(payload.email ?? ''),
       role: String(payload.role ?? ''),
       fullName: String(payload.fullName ?? ''),
+      issuedAt: typeof payload.iat === 'number' ? payload.iat : undefined,
     };
   } catch {
     return null;

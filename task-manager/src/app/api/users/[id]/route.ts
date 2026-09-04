@@ -26,7 +26,10 @@ export async function PATCH(request: NextRequest, { params }: Params) {
         ...(data.departmentId !== undefined ? { departmentId: data.departmentId || null } : {}),
         ...(data.managerId !== undefined ? { managerId: data.managerId || null } : {}),
         ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
-        ...(data.password ? { passwordHash: await hashPassword(data.password) } : {}),
+        // Сброс пароля администратором тоже обрывает старые сессии сотрудника
+        ...(data.password
+          ? { passwordHash: await hashPassword(data.password), passwordChangedAt: new Date() }
+          : {}),
       },
       select: { id: true, email: true, fullName: true, role: true, isActive: true },
     });

@@ -58,6 +58,12 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   });
   if (!user || !user.isActive) return null;
 
+  // Пароль сменили — все токены, выданные раньше, недействительны.
+  // Секунда допуска: iat округляется вниз, иначе свежий токен отверг бы сам себя.
+  if (payload.issuedAt && payload.issuedAt + 1 < Math.floor(user.passwordChangedAt.getTime() / 1000)) {
+    return null;
+  }
+
   return {
     id: user.id,
     email: user.email,
