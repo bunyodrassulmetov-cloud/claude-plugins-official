@@ -5,6 +5,7 @@ import { OPEN_STATUSES } from '@/lib/tasks';
 import { periodBounds } from '@/lib/dates';
 import { getSettings } from '@/lib/settings';
 import { notify } from '@/lib/notifications';
+import { sendTelegramMessage, telegramEnabled } from '@/lib/telegram';
 
 export type UnfinishedTask = {
   id: number;
@@ -242,5 +243,59 @@ export async function generateDailyReports(now = new Date(), periodType: ReportP
     }
   }
 
-  return { reports: created.length, periodStart: start, periodEnd: end };
+  const personal = await sendPersonalSummaries(start, end, now);
+  return { reports: created.length, personalSummaries: personal, periodStart: start, periodEnd: end };
+}
+
+/**
+ * Итог дня каждому сотруднику в Telegram: та же сводка, что видит руководитель,
+ * но только по нему самому. Без привязанного чата шаг пропускается.
+ */
+async function sendPersonalSummaries(periodStart: Date, periodEnd: Date, now: Date) {
+  if (!telegramEnabled()) return 0;
+
+  const staff = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      approvalStatus: 'APPROVED',
+      telegramChatId: { not: null },
+      role: { in: ['CHIEF_ACCOUNTANT', 'ACCOUNTANT'] },
+    },
+    select: { id: true, telegramChatId: true },
+  });
+  if (staff.length === 0) return 0;
+
+  const { items } = await buildReportData(
+    staff.map((person) => person.id),
+    periodStart,
+    periodEnd,
+    now,
+  );
+
+  let sent = 0;
+  for (const person of staff) {
+    const item = items.find((row) => row.userId === person.id);
+    if (!item) continue;
+    if (item.planned === 0 && item.completed === 0 && item.unfinished.length === 0) continue;
+
+    const lines = [
+      'Итоги дня',
+      '',
+      `Запланировано: ${item.planned}`,
+      `Выполнено: ${item.completed}`,
+      ...(item.pending > 0 ? [`Ждёт приёмки: ${item.pending}`] : []),
+      ...(item.overdue > 0 ? [`Просрочено: ${item.overdue}`] : []),
+    ];
+    if (item.unfinished.length > 0) {
+      lines.push('', 'Незакрытые задачи:');
+      for (const task of item.unfinished.slice(0, 10)) {
+        lines.push(`• ${task.title}${task.overdue ? ' — просрочена' : ''}`);
+      }
+      if (item.unfinished.length > 10) lines.push(`…и ещё ${item.unfinished.length - 10}`);
+    }
+
+    await sendTelegramMessage(person.telegramChatId!, lines.join('\n'));
+    sent += 1;
+  }
+  return sent;
 }

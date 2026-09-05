@@ -25,6 +25,14 @@ export async function POST(request: NextRequest) {
       return fail('Неверный email или пароль', 401);
     }
 
+    // Пароль верный: здесь уже можно сказать, что заявка не обработана
+    if (user.approvalStatus === 'PENDING') {
+      return fail('Заявка на доступ ещё не подтверждена администратором', 403);
+    }
+    if (user.approvalStatus === 'REJECTED') {
+      return fail('В доступе отказано. Обратитесь к администратору.', 403);
+    }
+
     await clearFailures(email, ip);
     await createSessionCookie(user);
     return ok({ id: user.id, fullName: user.fullName, role: user.role });

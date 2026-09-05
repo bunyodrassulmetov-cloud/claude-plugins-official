@@ -49,7 +49,7 @@ export async function sendTelegramMessage(chatId: string, text: string) {
 
 /** Рассылка уведомлений тем, кто привязал чат. Ошибки не ломают основную операцию. */
 export async function sendTelegramNotifications(
-  items: { userId: number; title: string; body?: string | null }[],
+  items: { userId: number; title: string; body?: string | null; taskId?: number | null }[],
 ) {
   if (!telegramEnabled() || items.length === 0) return;
 
@@ -64,13 +64,37 @@ export async function sendTelegramNotifications(
   await Promise.all(
     items
       .filter((item) => chats.has(item.userId))
-      .map((item) =>
-        sendTelegramMessage(
-          chats.get(item.userId)!,
-          item.body ? `${item.title}\n\n${item.body}` : item.title,
-        ),
-      ),
+      .map(async (item) => {
+        const chatId = chats.get(item.userId)!;
+        const text = item.body ? `${item.title}\n\n${item.body}` : item.title;
+        const response = (await sendTelegramMessage(chatId, text)) as
+          | { result?: { message_id?: number } }
+          | null;
+
+        // Ответ на это сообщение станет заметкой к задаче — запоминаем связь
+        const messageId = response?.result?.message_id;
+        if (messageId && item.taskId) {
+          await prisma.telegramMessage
+            .create({ data: { chatId, messageId, taskId: item.taskId } })
+            .catch(() => undefined);
+        }
+      }),
   );
+}
+
+/** Задача, к которой относится ответ в чате: либо явный reply, либо последнее сообщение о задаче. */
+export async function resolveTaskForReply(chatId: string, replyToMessageId?: number) {
+  if (replyToMessageId) {
+    const exact = await prisma.telegramMessage.findUnique({
+      where: { chatId_messageId: { chatId, messageId: replyToMessageId } },
+    });
+    if (exact) return exact.taskId;
+  }
+  const recent = await prisma.telegramMessage.findFirst({
+    where: { chatId, createdAt: { gte: new Date(Date.now() - 12 * 3_600_000) } },
+    orderBy: { createdAt: 'desc' },
+  });
+  return recent?.taskId ?? null;
 }
 
 /** Код привязки: сотрудник отправляет его боту, чат сохраняется за ним. */

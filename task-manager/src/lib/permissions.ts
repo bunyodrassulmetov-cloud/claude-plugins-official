@@ -15,7 +15,7 @@ export const ROLE_LABELS: Record<SessionUser['role'], string> = {
   ADMIN: 'Администратор',
   DIRECTOR: 'Директор',
   CHIEF_ACCOUNTANT: 'Главный бухгалтер',
-  ACCOUNTANT: 'Бухгалтер / оператор',
+  ACCOUNTANT: 'Сотрудник',
 };
 
 export function isDirector(user: SessionUser) {

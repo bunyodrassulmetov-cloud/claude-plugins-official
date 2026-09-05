@@ -2,9 +2,10 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
-import { isManager } from '@/lib/permissions';
+import { isAdmin, isManager } from '@/lib/permissions';
 import { getSettings } from '@/lib/settings';
-import { formatDate, formatDateTime } from '@/lib/dates';
+import { formatDate, formatDateTime, periodBounds } from '@/lib/dates';
+import { buildReportData } from '@/lib/jobs/reports';
 import type { ReportTotals, UnfinishedTask } from '@/lib/jobs/reports';
 import ReportRefresh from '@/components/ReportRefresh';
 import { EmptyState, StatCard } from '@/components/ui';
@@ -31,7 +32,7 @@ export default async function ReportsPage({
   searchParams: Promise<{ period?: string; reportId?: string }>;
 }) {
   const user = await requireUser();
-  if (!isManager(user)) redirect('/dashboard');
+  if (isAdmin(user)) redirect('/admin/users');
 
   const params = await searchParams;
   const period = (PERIODS.find((p) => p.value === params.period)?.value ?? 'DAILY') as
@@ -39,6 +40,81 @@ export default async function ReportsPage({
     | 'WEEKLY'
     | 'MONTHLY';
   const { timezone } = await getSettings();
+
+  // Рядовой сотрудник видит собственную сводку: она считается на лету,
+  // хранить отдельный отчёт на каждого человека незачем.
+  if (!isManager(user)) {
+    const { start, end } = periodBounds(period, new Date(), timezone);
+    const { items } = await buildReportData([user.id], start, end);
+    const mine = items[0];
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900">Моя отчётность</h1>
+            <p className="text-sm text-slate-500">
+              {formatDate(start, timezone)} — {formatDate(end, timezone)}
+            </p>
+          </div>
+          <div className="flex rounded-lg border border-slate-300 bg-white p-0.5 text-sm">
+            {PERIODS.map((item) => (
+              <Link
+                key={item.value}
+                href={`/reports?period=${item.value}`}
+                className={`rounded-md px-3 py-1.5 ${
+                  period === item.value ? 'bg-slate-900 text-white' : 'text-slate-600'
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <StatCard label="Запланировано" value={mine?.planned ?? 0} />
+          <StatCard label="Выполнено" value={mine?.completed ?? 0} tone="success" />
+          <StatCard label="На приёмке" value={mine?.pending ?? 0} tone="warning" />
+          <StatCard
+            label="Просрочено"
+            value={mine?.overdue ?? 0}
+            tone={mine?.overdue ? 'danger' : 'default'}
+          />
+          <StatCard label="Перенесено" value={mine?.carriedOver ?? 0} hint="с прошлых дней" />
+        </div>
+
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
+            Незакрытые задачи
+          </h2>
+          {!mine || mine.unfinished.length === 0 ? (
+            <EmptyState title="Незакрытых задач нет" hint="Всё в срок — так держать." />
+          ) : (
+            <ul className="card divide-y divide-slate-100">
+              {mine.unfinished.map((task) => (
+                <li key={task.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3 text-sm">
+                  <Link href={`/tasks/${task.id}`} className="font-medium text-slate-700 hover:underline">
+                    {task.title}
+                  </Link>
+                  <span className={task.overdue ? 'text-red-600' : 'text-slate-500'}>
+                    дедлайн {formatDateTime(task.deadline, timezone)}
+                    {task.overdue ? ' · просрочено' : ''}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    приоритет {PRIORITY_RU[task.priority] ?? task.priority} · заказчик {task.customer}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <p className="text-xs text-slate-400">
+          Итоги дня приходят вечером в Telegram, если он подключён в разделе «Профиль».
+        </p>
+      </div>
+    );
+  }
 
   const reports = await prisma.report.findMany({
     where: { recipientId: user.id, periodType: period },

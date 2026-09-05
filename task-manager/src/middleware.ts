@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
   const session = token ? await verifySession(token) : null;
   const { pathname } = request.nextUrl;
 
-  if (pathname === '/login') {
+  if (pathname === '/login' || pathname === '/register') {
     if (!session) return NextResponse.next();
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
@@ -42,6 +42,7 @@ export const config = {
     '/profile/:path*',
     '/admin/:path*',
     '/login',
+    '/register',
     '/api/tasks/:path*',
     '/api/reports/:path*',
     '/api/users/:path*',

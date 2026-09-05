@@ -43,9 +43,18 @@ enum NotificationType {
   DEADLINE_SOON
   TASK_OVERDUE
   REPORT_READY
+  ACCESS_REQUEST /// заявка на доступ — администраторам
 }
 
 /// Как часто повторяется шаблон задачи.
+/// Состояние заявки на доступ. Существующие учётки заводит администратор — они сразу APPROVED,
+/// самостоятельная регистрация создаёт PENDING и ждёт подтверждения.
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum Recurrence {
   DAILY
   WEEKLY
@@ -84,7 +93,15 @@ model User {
   managerId    Int? /// непосредственный руководитель
   manager      User?    @relation("Subordinates", fields: [managerId], references: [id], onDelete: SetNull)
   subordinates User[]   @relation("Subordinates")
+  approvedUsers User[]  @relation("UserApprover")
   isActive     Boolean  @default(true)
+  approvalStatus ApprovalStatus @default(APPROVED)
+  /// Кто и когда подтвердил доступ — для истории
+  approvedById Int?
+  approvedBy   User?    @relation("UserApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+  /// Что человек написал о себе при регистрации: должность, отдел
+  signupNote   String?
   /// Момент последней смены пароля: выданные до него сессии считаются недействительными
   passwordChangedAt DateTime @default(now())
   /// Чат в Telegram для уведомлений; пусто — уведомления только в приложении
@@ -158,6 +175,7 @@ model Task {
   notifications Notification[]
   coAssignees   TaskAssignee[]
   checklist     ChecklistItem[]
+  telegramMessages TelegramMessage[]
 
   @@index([assigneeId, deadline])
   @@index([departmentId, status])
@@ -334,6 +352,19 @@ model TaskTemplate {
   updatedAt DateTime @updatedAt
 
   @@index([isActive, nextDeadline])
+}
+
+/// Связь исходящего сообщения бота с задачей: ответ на него превращается в заметку.
+model TelegramMessage {
+  id        Int      @id @default(autoincrement())
+  chatId    String
+  messageId Int
+  taskId    Int
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([chatId, messageId])
+  @@index([chatId, createdAt])
 }
 
 /// Счётчик неудачных входов: защита от перебора паролей.

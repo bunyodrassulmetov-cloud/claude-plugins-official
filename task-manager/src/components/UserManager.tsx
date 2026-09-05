@@ -20,7 +20,7 @@ const ROLES: { value: UserRow['role']; label: string }[] = [
   { value: 'ADMIN', label: 'Администратор' },
   { value: 'DIRECTOR', label: 'Директор' },
   { value: 'CHIEF_ACCOUNTANT', label: 'Главный бухгалтер' },
-  { value: 'ACCOUNTANT', label: 'Бухгалтер / оператор' },
+  { value: 'ACCOUNTANT', label: 'Сотрудник' },
 ];
 
 export default function UserManager({

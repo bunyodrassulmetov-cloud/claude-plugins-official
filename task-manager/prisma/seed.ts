@@ -39,6 +39,12 @@ const STAFF: {
     role: 'ADMIN',
   },
   {
+    email: 'bunyod@company.ru',
+    fullName: 'Бунёд Расулметов',
+    position: 'Администратор',
+    role: 'ADMIN',
+  },
+  {
     email: 'gayrat@company.ru',
     fullName: 'Гайрат Ниязходжаев',
     position: 'Директор',

@@ -56,7 +56,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     where: { id: Number(payload.sub) },
     include: { department: { select: { name: true } } },
   });
-  if (!user || !user.isActive) return null;
+  if (!user || !user.isActive || user.approvalStatus !== 'APPROVED') return null;
 
   // Пароль сменили — все токены, выданные раньше, недействительны.
   // Секунда допуска: iat округляется вниз, иначе свежий токен отверг бы сам себя.

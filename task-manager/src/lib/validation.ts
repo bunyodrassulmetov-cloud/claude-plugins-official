@@ -9,6 +9,27 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Введите пароль'),
 });
 
+export const registerSchema = z.object({
+  email: z.string().email('Некорректный email').toLowerCase(),
+  fullName: z.string().trim().min(3, 'Укажите фамилию и имя').max(150),
+  password: z
+    .string()
+    .min(8, 'Пароль — минимум 8 символов')
+    .max(100)
+    .refine((value) => /[a-zA-Zа-яА-Я]/.test(value) && /\d/.test(value), {
+      message: 'Пароль должен содержать буквы и цифры',
+    }),
+  note: z.string().trim().max(300).optional().nullable(),
+});
+
+export const approvalSchema = z.object({
+  approve: z.boolean(),
+  role: roleEnum.optional(),
+  departmentId: z.coerce.number().int().positive().optional().nullable(),
+  managerId: z.coerce.number().int().positive().optional().nullable(),
+  position: z.string().trim().max(150).optional().nullable(),
+});
+
 export const passwordChangeSchema = z.object({
   currentPassword: z.string().min(1, 'Введите текущий пароль'),
   newPassword: z

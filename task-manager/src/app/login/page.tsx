@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Suspense } from 'react';
 import LoginForm from '@/components/LoginForm';
 import { config } from '@/lib/config';
@@ -15,8 +16,14 @@ export default function LoginPage() {
         <Suspense fallback={<div className="card h-64 animate-pulse" />}>
           <LoginForm />
         </Suspense>
-        <p className="mt-6 text-center text-xs text-slate-400">
-          Доступ выдаёт администратор. Забыли пароль — обратитесь к нему.
+        <p className="mt-6 text-center text-sm text-slate-500">
+          Нет доступа?{' '}
+          <Link href="/register" className="underline">
+            Отправить заявку
+          </Link>
+        </p>
+        <p className="mt-2 text-center text-xs text-slate-400">
+          Забыли пароль — обратитесь к администратору.
         </p>
       </div>
     </main>

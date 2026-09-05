@@ -57,10 +57,13 @@ export async function createTask(user: SessionUser, input: TaskInput) {
   await assertUsersExist([input.assigneeId, input.customerId, input.acceptorId, ...(input.coAssigneeIds ?? [])]);
   const coAssigneeIds = normalizeCoAssignees(input.coAssigneeIds, input.assigneeId);
 
-  const assignee = await prisma.user.findUniqueOrThrow({
-    where: { id: input.assigneeId },
-    select: { departmentId: true, fullName: true },
-  });
+  const [assignee, customer] = await Promise.all([
+    prisma.user.findUniqueOrThrow({
+      where: { id: input.assigneeId },
+      select: { departmentId: true, fullName: true },
+    }),
+    prisma.user.findUniqueOrThrow({ where: { id: input.customerId }, select: { fullName: true } }),
+  ]);
 
   const task = await prisma.task.create({
     data: {
@@ -89,7 +92,12 @@ export async function createTask(user: SessionUser, input: TaskInput) {
         type: 'TASK_ASSIGNED' as const,
         taskId: task.id,
         title: 'Новая задача',
-        body: `«${task.title}» — срок ${formatDateTime(task.deadline)}.`,
+        body:
+          `«${task.title}»\n` +
+          `Поручил(а): ${customer.fullName}\n` +
+          `Срок: ${formatDateTime(task.deadline)}` +
+          (task.acceptorId ? '\nПринимает результат: назначен' : '') +
+          '\n\nОтветьте на это сообщение, чтобы добавить заметку к задаче.',
       },
       ...(task.acceptorId
         ? [
