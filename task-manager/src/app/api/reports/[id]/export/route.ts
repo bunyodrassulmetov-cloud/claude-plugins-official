@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import writeXlsxFile from 'write-excel-file/node';
 import { prisma } from '@/lib/db';
 import { HttpError, requireUser } from '@/lib/auth';
 import { handle, parseId } from '@/lib/api';
@@ -6,15 +7,41 @@ import { getSettings } from '@/lib/settings';
 import { formatDate, formatDateTime } from '@/lib/dates';
 import type { UnfinishedTask } from '@/lib/jobs/reports';
 
-/** Экранирование для CSV: кавычки удваиваются, поле берётся в кавычки. */
-function cell(value: string | number | null | undefined) {
-  const text = value === null || value === undefined ? '' : String(value);
-  return `"${text.replace(/"/g, '""')}"`;
-}
+type Cell = {
+  value?: string | number;
+  type?: typeof String | typeof Number;
+  fontWeight?: 'bold';
+  align?: 'left' | 'center' | 'right';
+  color?: string;
+  backgroundColor?: string;
+  span?: number;
+};
+
+const HEAD: Omit<Cell, 'value'> = { fontWeight: 'bold', backgroundColor: '#e2e8f0' };
+const RED = '#b91c1c';
+
+const text = (value: string | null | undefined, extra: Omit<Cell, 'value'> = {}): Cell => ({
+  value: value ?? '',
+  type: String,
+  ...extra,
+});
+const num = (value: number, extra: Omit<Cell, 'value'> = {}): Cell => ({
+  value,
+  type: Number,
+  align: 'right',
+  ...extra,
+});
+
+const PRIORITIES: Record<string, string> = {
+  LOW: 'низкий',
+  MEDIUM: 'средний',
+  HIGH: 'высокий',
+  CRITICAL: 'критичный',
+};
 
 /**
- * Выгрузка сводки в CSV с разделителем «;» и BOM —
- * такой файл Excel открывает по двойному клику, без мастера импорта.
+ * Выгрузка сводки в .xlsx: шапка, ширины колонок, просрочки красным.
+ * Раньше был CSV — он открывался, но руководителю приходилось форматировать его руками.
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return handle(async () => {
@@ -34,69 +61,82 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     if (!report) throw new HttpError(404, 'Отчёт не найден');
 
     const { timezone } = await getSettings();
-    const lines: string[] = [];
+    const period = `${formatDate(report.periodStart, timezone)} — ${formatDate(report.periodEnd, timezone)}`;
 
-    lines.push(
+    const rows: Cell[][] = [
+      [text(`Отчёт: ${report.department?.name ?? 'вся компания'}`, { fontWeight: 'bold' })],
+      [text(`Период: ${period}`)],
+      [],
       [
-        cell('Отчёт'),
-        cell(report.department?.name ?? 'Вся компания'),
-        cell(`${formatDate(report.periodStart, timezone)} — ${formatDate(report.periodEnd, timezone)}`),
-      ].join(';'),
-    );
-    lines.push('');
-    lines.push(
-      ['Сотрудник', 'Должность', 'Запланировано', 'Выполнено', 'На приёмке', 'Просрочено', 'Перенесено']
-        .map(cell)
-        .join(';'),
-    );
+        text('Сотрудник', HEAD),
+        text('Должность', HEAD),
+        text('Запланировано', HEAD),
+        text('Выполнено', HEAD),
+        text('На приёмке', HEAD),
+        text('Просрочено', HEAD),
+        text('Перенесено', HEAD),
+      ],
+    ];
+
     for (const item of report.items) {
-      lines.push(
-        [
-          cell(item.user.fullName),
-          cell(item.user.position),
-          item.planned,
-          item.completed,
-          item.pending,
-          item.overdue,
-          item.carriedOver,
-        ].join(';'),
-      );
+      rows.push([
+        text(item.user.fullName),
+        text(item.user.position),
+        num(item.planned),
+        num(item.completed),
+        num(item.pending),
+        num(item.overdue, item.overdue > 0 ? { color: RED, fontWeight: 'bold' } : {}),
+        num(item.carriedOver),
+      ]);
     }
 
-    lines.push('');
-    lines.push(['Невыполненные задачи'].map(cell).join(';'));
-    lines.push(
-      ['Сотрудник', 'Задача', 'Дедлайн', 'Приоритет', 'Заказчик', 'Принимает', 'Просрочена']
-        .map(cell)
-        .join(';'),
-    );
-    const priorities: Record<string, string> = {
-      LOW: 'низкий',
-      MEDIUM: 'средний',
-      HIGH: 'высокий',
-      CRITICAL: 'критичный',
-    };
+    const unfinishedRows: Cell[][] = [];
     for (const item of report.items) {
       for (const task of item.unfinished as unknown as UnfinishedTask[]) {
-        lines.push(
-          [
-            cell(item.user.fullName),
-            cell(task.title),
-            cell(formatDateTime(task.deadline, timezone)),
-            cell(priorities[task.priority] ?? task.priority),
-            cell(task.customer),
-            cell(task.acceptor),
-            cell(task.overdue ? 'да' : 'нет'),
-          ].join(';'),
-        );
+        unfinishedRows.push([
+          text(item.user.fullName),
+          text(task.title),
+          text(formatDateTime(task.deadline, timezone), task.overdue ? { color: RED } : {}),
+          text(PRIORITIES[task.priority] ?? task.priority),
+          text(task.customer),
+          text(task.acceptor),
+          text(task.overdue ? 'да' : 'нет', task.overdue ? { color: RED, fontWeight: 'bold' } : {}),
+        ]);
       }
     }
 
-    const csv = `﻿${lines.join('\r\n')}`;
-    const name = `otchet-${formatDate(report.periodStart, timezone).replace(/\./g, '-')}.csv`;
-    return new NextResponse(csv, {
+    if (unfinishedRows.length > 0) {
+      rows.push([], [text('Невыполненные задачи', { fontWeight: 'bold' })]);
+      rows.push([
+        text('Сотрудник', HEAD),
+        text('Задача', HEAD),
+        text('Дедлайн', HEAD),
+        text('Приоритет', HEAD),
+        text('Заказчик', HEAD),
+        text('Принимает', HEAD),
+        text('Просрочена', HEAD),
+      ]);
+      rows.push(...unfinishedRows);
+    }
+
+    // Библиотека возвращает объект с методами вывода: берём буфер, файл на диск не нужен
+    const buffer = await writeXlsxFile(rows as never, {
+      sheet: 'Сводка',
+      columns: [
+        { width: 26 },
+        { width: 34 },
+        { width: 16 },
+        { width: 14 },
+        { width: 14 },
+        { width: 14 },
+        { width: 14 },
+      ],
+    }).toBuffer();
+
+    const name = `otchet-${formatDate(report.periodStart, timezone).replace(/\./g, '-')}.xlsx`;
+    return new NextResponse(new Uint8Array(buffer) as unknown as BodyInit, {
       headers: {
-        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
         'Cache-Control': 'private, no-store',
       },

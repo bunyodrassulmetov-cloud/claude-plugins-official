@@ -28,7 +28,7 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
-  serverExternalPackages: ['@prisma/client', 'bcryptjs'],
+  serverExternalPackages: ['@prisma/client', 'bcryptjs', 'write-excel-file'],
   experimental: {
     serverActions: { bodySizeLimit: '25mb' },
   },

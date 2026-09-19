@@ -182,7 +182,7 @@ export default async function ReportsPage({
             {report.department ? <span>· {report.department.name}</span> : <span>· вся компания</span>}
             <span>· сформирован {formatDateTime(report.generatedAt, timezone)}</span>
             <a className="btn-secondary ml-auto" href={`/api/reports/${report.id}/export`}>
-              Выгрузить для Excel
+              Выгрузить в Excel
             </a>
           </div>
 
