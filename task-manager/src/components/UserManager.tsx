@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import Dialog from './Dialog';
 
 export type UserRow = {
   id: number;
@@ -32,6 +33,7 @@ export default function UserManager({
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [passwordFor, setPasswordFor] = useState<UserRow | null>(null);
   const [pending, setPending] = useState(false);
   const [form, setForm] = useState({
     email: '',
@@ -82,10 +84,12 @@ export default function UserManager({
     router.refresh();
   }
 
-  async function resetPassword(id: number) {
-    const password = window.prompt('Новый пароль (минимум 8 символов):');
-    if (!password) return;
-    await patch(id, { password });
+  async function resetPassword(id: number, password: string) {
+    if (password.trim().length < 8) {
+      setError('Пароль — минимум 8 символов');
+      return;
+    }
+    await patch(id, { password: password.trim() });
   }
 
   const managers = users.filter((u) => u.role !== 'ACCOUNTANT' && u.role !== 'ADMIN');
@@ -206,8 +210,8 @@ export default function UserManager({
                   </button>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <button type="button" className="text-xs text-slate-500 hover:underline"
-                    onClick={() => resetPassword(user.id)}>
+                  <button type="button" className="rounded px-3 py-2 text-xs text-slate-500 hover:bg-slate-100"
+                    onClick={() => setPasswordFor(user)}>
                     сменить пароль
                   </button>
                 </td>
@@ -216,6 +220,20 @@ export default function UserManager({
           </tbody>
         </table>
       </div>
+      <Dialog
+        open={passwordFor !== null}
+        title="Новый пароль"
+        description={passwordFor ? `Для учётной записи ${passwordFor.fullName}.` : undefined}
+        confirmLabel="Сохранить"
+        input={{ label: 'Пароль — минимум 8 символов', multiline: false, required: true }}
+        onCancel={() => setPasswordFor(null)}
+        onConfirm={async (password) => {
+          const target = passwordFor;
+          setPasswordFor(null);
+          if (target) await resetPassword(target.id, password);
+        }}
+      />
+
       <p className="text-xs text-slate-400">
         Сотрудников не удаляем — на них ссылаются задачи и история. Уволенного переводите в «отключён».
       </p>

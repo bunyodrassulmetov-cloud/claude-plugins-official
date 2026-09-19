@@ -69,16 +69,16 @@ export default function Checklist({
 
           <ul className="space-y-1">
             {items.map((item) => (
-              <li key={item.id} className="group flex items-start gap-2">
+              <li key={item.id} className="flex items-start gap-2">
                 <input
                   type="checkbox"
-                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300"
+                  className="mt-2 h-5 w-5 shrink-0 rounded border-slate-300"
                   checked={item.isDone}
                   disabled={!canEdit}
                   onChange={(e) => send(`/api/checklist/${item.id}`, 'PATCH', { isDone: e.target.checked })}
                 />
                 <span
-                  className={`flex-1 text-sm ${
+                  className={`flex-1 py-1.5 text-sm ${
                     item.isDone ? 'text-slate-400 line-through decoration-slate-300' : 'text-slate-700'
                   }`}
                 >
@@ -90,7 +90,7 @@ export default function Checklist({
                 {canEdit ? (
                   <button
                     type="button"
-                    className="shrink-0 text-xs text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-red-500"
+                    className="shrink-0 rounded p-2 text-sm text-slate-400 transition hover:bg-red-50 hover:text-red-500"
                     onClick={() => send(`/api/checklist/${item.id}`, 'DELETE')}
                     aria-label={`Удалить пункт «${item.title}»`}
                   >

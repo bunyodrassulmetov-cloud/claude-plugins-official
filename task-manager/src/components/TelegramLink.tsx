@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import Dialog from './Dialog';
 
 export default function TelegramLink({
   connected,
@@ -14,6 +15,7 @@ export default function TelegramLink({
   const [code, setCode] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   async function requestCode() {
     setPending(true);
@@ -29,7 +31,6 @@ export default function TelegramLink({
   }
 
   async function disconnect() {
-    if (!window.confirm('Отключить уведомления в Telegram?')) return;
     await fetch('/api/telegram/link', { method: 'DELETE' });
     setCode(null);
     router.refresh();
@@ -39,9 +40,21 @@ export default function TelegramLink({
     return (
       <div className="card max-w-md space-y-3 p-5">
         <p className="text-sm text-emerald-700">Telegram подключён — уведомления приходят в чат.</p>
-        <button type="button" className="btn-danger" onClick={disconnect}>
+        <button type="button" className="btn-danger" onClick={() => setConfirming(true)}>
           Отключить
         </button>
+        <Dialog
+          open={confirming}
+          title="Отключить Telegram?"
+          description="Уведомления останутся только внутри приложения. Подключить можно в любой момент."
+          confirmLabel="Отключить"
+          tone="danger"
+          onCancel={() => setConfirming(false)}
+          onConfirm={async () => {
+            setConfirming(false);
+            await disconnect();
+          }}
+        />
       </div>
     );
   }

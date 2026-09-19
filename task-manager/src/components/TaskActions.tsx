@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { TaskStatus } from '@prisma/client';
+import Dialog from './Dialog';
 
 export type TaskAbilities = {
   submit: boolean;
@@ -27,15 +28,11 @@ export default function TaskActions({
   const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Подтверждения показываем своим диалогом: window.confirm не работает
+   *  во встроенных браузерах, кнопка просто не отзывалась бы. */
+  const [dialog, setDialog] = useState<null | 'reject' | 'cancel' | 'delete'>(null);
 
-  async function run(action: string, options?: { prompt?: string; confirm?: string }) {
-    let comment: string | null = null;
-    if (options?.prompt) {
-      comment = window.prompt(options.prompt) ?? null;
-      if (comment === null) return;
-    }
-    if (options?.confirm && !window.confirm(options.confirm)) return;
-
+  async function run(action: string, comment: string | null = null) {
     setPending(action);
     setError(null);
     const response = await fetch(`/api/tasks/${taskId}/actions`, {
@@ -53,7 +50,6 @@ export default function TaskActions({
   }
 
   async function remove() {
-    if (!window.confirm('Удалить задачу вместе с заметками и вложениями? Действие необратимо.')) return;
     setPending('delete');
     const response = await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
     setPending(null);
@@ -85,7 +81,7 @@ export default function TaskActions({
           <button
             className="btn-secondary"
             disabled={!!pending}
-            onClick={() => run('reject', { prompt: 'Что нужно доработать?' })}
+            onClick={() => setDialog('reject')}
             type="button"
           >
             Вернуть на доработку
@@ -100,14 +96,14 @@ export default function TaskActions({
           <button
             className="btn-danger"
             disabled={!!pending}
-            onClick={() => run('cancel', { confirm: 'Отменить задачу? Она останется в архиве.' })}
+            onClick={() => setDialog('cancel')}
             type="button"
           >
             Отменить
           </button>
         ) : null}
         {abilities.remove ? (
-          <button className="btn-danger" disabled={!!pending} onClick={remove} type="button">
+          <button className="btn-danger" disabled={!!pending} onClick={() => setDialog('delete')} type="button">
             Удалить
           </button>
         ) : null}
@@ -117,6 +113,49 @@ export default function TaskActions({
           {error}
         </p>
       ) : null}
+
+      <Dialog
+        open={dialog === 'reject'}
+        title="Вернуть на доработку"
+        description="Исполнитель получит уведомление, комментарий сохранится в заметках задачи."
+        confirmLabel="Вернуть"
+        pending={pending === 'reject'}
+        input={{ label: 'Что нужно доработать?', required: true }}
+        onCancel={() => setDialog(null)}
+        onConfirm={async (comment) => {
+          setDialog(null);
+          await run('reject', comment);
+        }}
+      />
+
+      <Dialog
+        open={dialog === 'cancel'}
+        title="Отменить задачу?"
+        description="Задача останется в архиве, её можно будет вернуть в работу."
+        confirmLabel="Отменить задачу"
+        cancelLabel="Не отменять"
+        tone="danger"
+        pending={pending === 'cancel'}
+        onCancel={() => setDialog(null)}
+        onConfirm={async () => {
+          setDialog(null);
+          await run('cancel');
+        }}
+      />
+
+      <Dialog
+        open={dialog === 'delete'}
+        title="Удалить задачу?"
+        description="Вместе с заметками и вложениями. Действие необратимо — обычно достаточно отмены."
+        confirmLabel="Удалить"
+        tone="danger"
+        pending={pending === 'delete'}
+        onCancel={() => setDialog(null)}
+        onConfirm={async () => {
+          setDialog(null);
+          await remove();
+        }}
+      />
     </div>
   );
 }

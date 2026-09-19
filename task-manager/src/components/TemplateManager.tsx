@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { Recurrence } from '@prisma/client';
 import { PRIORITY_LABELS } from './ui';
+import Dialog from './Dialog';
 
 export type TemplateRow = {
   id: number;
@@ -41,12 +42,13 @@ export default function TemplateManager({
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [toRemove, setToRemove] = useState<TemplateRow | null>(null);
   const [form, setForm] = useState({
     title: '',
     description: '',
     assigneeId: String(currentUserId),
     customerId: String(currentUserId),
-    acceptorId: '',
+    acceptorId: String(currentUserId),
     priority: 'MEDIUM',
     recurrence: 'MONTHLY' as Recurrence,
     dayOfWeek: '1',
@@ -112,7 +114,6 @@ export default function TemplateManager({
   }
 
   async function remove(id: number) {
-    if (!window.confirm('Удалить шаблон? Уже созданные задачи останутся.')) return;
     const response = await fetch(`/api/templates/${id}`, { method: 'DELETE' });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
@@ -392,8 +393,8 @@ export default function TemplateManager({
               </button>
               <button
                 type="button"
-                className="text-xs text-red-500 hover:underline"
-                onClick={() => remove(template.id)}
+                className="rounded px-3 py-2 text-xs text-red-500 hover:bg-red-50"
+                onClick={() => setToRemove(template)}
               >
                 удалить
               </button>
@@ -401,6 +402,24 @@ export default function TemplateManager({
           ))}
         </ul>
       )}
+
+      <Dialog
+        open={toRemove !== null}
+        title="Удалить шаблон?"
+        description={
+          toRemove
+            ? `«${toRemove.title}» перестанет создавать задачи. Уже созданные задачи останутся.`
+            : undefined
+        }
+        confirmLabel="Удалить"
+        tone="danger"
+        onCancel={() => setToRemove(null)}
+        onConfirm={async () => {
+          const template = toRemove;
+          setToRemove(null);
+          if (template) await remove(template.id);
+        }}
+      />
     </div>
   );
 }

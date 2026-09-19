@@ -42,7 +42,7 @@ export default function TaskRow({ task }: { task: TaskRowData }) {
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-label={open ? 'Свернуть' : 'Показать подробности'}
-          className="shrink-0 rounded p-1 text-slate-400 transition hover:bg-slate-200 hover:text-slate-700"
+          className="flex h-10 w-8 shrink-0 items-center justify-center rounded text-slate-400 transition hover:bg-slate-200 hover:text-slate-700"
         >
           <span className={`block transition-transform ${open ? 'rotate-90' : ''}`}>▶</span>
         </button>
@@ -54,7 +54,7 @@ export default function TaskRow({ task }: { task: TaskRowData }) {
 
         <Link
           href={`/tasks/${task.id}`}
-          className={`min-w-0 flex-1 truncate text-sm font-medium ${
+          className={`min-w-0 flex-1 truncate py-2.5 text-sm font-medium ${
             task.closed
               ? 'text-slate-400 line-through decoration-slate-300'
               : 'text-slate-800 hover:text-slate-950 hover:underline'
@@ -87,7 +87,8 @@ export default function TaskRow({ task }: { task: TaskRowData }) {
         <span
           className={`shrink-0 text-xs tabular-nums ${task.overdue ? 'text-red-600' : 'text-slate-500'}`}
         >
-          {task.deadlineText}
+          <span className="sm:hidden">{task.deadlineShort}</span>
+          <span className="hidden sm:inline">{task.deadlineText}</span>
         </span>
 
         <span className="hidden shrink-0 sm:block">
@@ -102,7 +103,7 @@ export default function TaskRow({ task }: { task: TaskRowData }) {
               onClick={() => run('submit')}
               title={task.hasAcceptor ? 'Сдать на приёмку' : 'Отметить выполненной'}
               aria-label={task.hasAcceptor ? 'Сдать на приёмку' : 'Отметить выполненной'}
-              className="rounded p-1 text-slate-300 transition hover:bg-emerald-50 hover:text-emerald-600"
+              className="flex h-10 w-10 items-center justify-center rounded text-base text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-600"
             >
               ✔
             </button>
@@ -114,7 +115,7 @@ export default function TaskRow({ task }: { task: TaskRowData }) {
               onClick={() => run('accept')}
               title="Принять результат"
               aria-label="Принять результат"
-              className="rounded p-1 text-amber-500 transition hover:bg-emerald-50 hover:text-emerald-600"
+              className="flex h-10 w-10 items-center justify-center rounded text-base text-amber-500 transition hover:bg-emerald-50 hover:text-emerald-600"
             >
               ✔
             </button>
@@ -126,7 +127,7 @@ export default function TaskRow({ task }: { task: TaskRowData }) {
               onClick={() => run('postpone', { days: 1 })}
               title="Перенести срок на день"
               aria-label="Перенести срок на день"
-              className="rounded p-1 text-slate-300 transition hover:bg-slate-200 hover:text-slate-700"
+              className="flex h-10 w-10 items-center justify-center rounded text-base text-slate-400 transition hover:bg-slate-200 hover:text-slate-700"
             >
               →
             </button>

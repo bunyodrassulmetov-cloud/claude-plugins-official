@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ALLOWED_EXTENSIONS, formatBytes } from '@/lib/attachments';
+import Dialog from './Dialog';
 
 export type AttachmentView = {
   id: number;
@@ -26,6 +27,7 @@ export default function AttachmentPanel({
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [toRemove, setToRemove] = useState<AttachmentView | null>(null);
 
   async function upload(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
@@ -44,7 +46,6 @@ export default function AttachmentPanel({
   }
 
   async function remove(id: number) {
-    if (!window.confirm('Удалить вложение?')) return;
     const response = await fetch(`/api/attachments/${id}`, { method: 'DELETE' });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
@@ -74,8 +75,8 @@ export default function AttachmentPanel({
               {canUpload ? (
                 <button
                   type="button"
-                  className="shrink-0 text-xs text-red-500 hover:underline"
-                  onClick={() => remove(file.id)}
+                  className="shrink-0 rounded px-3 py-2 text-xs text-red-500 hover:bg-red-50"
+                  onClick={() => setToRemove(file)}
                 >
                   удалить
                 </button>
@@ -103,6 +104,20 @@ export default function AttachmentPanel({
 
       {pending ? <p className="text-sm text-slate-500">Загрузка…</p> : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
+
+      <Dialog
+        open={toRemove !== null}
+        title="Удалить вложение?"
+        description={toRemove ? `Файл «${toRemove.originalName}» будет удалён безвозвратно.` : undefined}
+        confirmLabel="Удалить"
+        tone="danger"
+        onCancel={() => setToRemove(null)}
+        onConfirm={async () => {
+          const file = toRemove;
+          setToRemove(null);
+          if (file) await remove(file.id);
+        }}
+      />
     </div>
   );
 }

@@ -38,7 +38,7 @@ export default function NavBar({
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex items-center gap-2">
-          <Link href="/dashboard" className="text-base font-semibold text-slate-900">
+          <Link href="/dashboard" className="py-2 text-base font-semibold text-slate-900">
             Task&nbsp;Manager
           </Link>
           <nav className="hidden items-center gap-1 md:flex">

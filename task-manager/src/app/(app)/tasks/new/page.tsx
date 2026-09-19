@@ -48,7 +48,8 @@ export default async function NewTaskPage() {
           description: '',
           assigneeId: assignees.length === 1 ? assignees[0].id : user.id,
           customerId: user.id,
-          acceptorId: '',
+          // Принимающий по умолчанию — тот, кто ставит задачу
+          acceptorId: user.id,
           coAssigneeIds: [],
           priority: 'MEDIUM',
           deadline: defaultDeadline,

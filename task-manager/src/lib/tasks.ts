@@ -2,7 +2,7 @@ import 'server-only';
 import type { Prisma, Priority, TaskStatus } from '@prisma/client';
 import { prisma } from './db';
 import type { SessionUser } from './auth';
-import { visibleTasksFilter } from './permissions';
+import { canAcceptTask, canEditTask, canSubmitTask, visibleTasksFilter } from './permissions';
 import { dayBounds, formatDateTime, humanizeDeadline } from './dates';
 import { getSettings } from './settings';
 
@@ -132,6 +132,8 @@ export type TaskRowData = {
   coAssignees: string[];
   department: string | null;
   deadlineText: string;
+  /** Без года — на узких экранах полная дата вытесняет название задачи */
+  deadlineShort: string;
   deadlineHuman: string;
   overdue: boolean;
   closed: boolean;
@@ -167,6 +169,7 @@ export function toRowData(
     coAssignees: task.coAssignees.map((item) => item.user.fullName),
     department: task.department?.name ?? null,
     deadlineText: formatDateTime(task.deadline, timezone),
+    deadlineShort: formatDateTime(task.deadline, timezone).replace(/\.\d{4} /, ' '),
     deadlineHuman: humanizeDeadline(task.deadline, now),
     overdue: isTaskOverdue(task, now),
     closed,
@@ -190,7 +193,6 @@ export async function withRowAbilities(
   timezone: string,
   now = new Date(),
 ) {
-  const { canAcceptTask, canEditTask, canSubmitTask } = await import('./permissions');
   return Promise.all(
     tasks.map(async (task) =>
       toRowData(task, timezone, now, {
@@ -199,6 +201,63 @@ export async function withRowAbilities(
         canPostpone: await canEditTask(user, task),
       }),
     ),
+  );
+}
+
+/**
+ * Задачи сотрудников для доски руководителя: всё незакрытое плюс закрытое
+ * за сегодня и вчера. Возвращается по одному блоку на сотрудника, по алфавиту.
+ */
+export async function loadTeamTasks(
+  user: SessionUser,
+  staffIds: number[],
+  timezone: string,
+  now = new Date(),
+) {
+  if (staffIds.length === 0) return [];
+
+  const sinceYesterday = dayBounds(new Date(now.getTime() - 86_400_000), timezone).start;
+  const [staff, tasks] = await Promise.all([
+    prisma.user.findMany({
+      where: { id: { in: staffIds } },
+      select: { id: true, fullName: true, position: true, department: { select: { name: true } } },
+      orderBy: { fullName: 'asc' },
+    }),
+    prisma.task.findMany({
+      where: {
+        assigneeId: { in: staffIds },
+        OR: [
+          { status: { in: OPEN_STATUSES } },
+          { status: 'DONE', completedAt: { gte: sinceYesterday } },
+        ],
+      },
+      include: taskInclude,
+      orderBy: [{ deadline: 'asc' }],
+    }),
+  ]);
+
+  const toRow = async (task: TaskWithRelations) =>
+    toRowData(task, timezone, now, {
+      canSubmit: await canSubmitTask(user, task),
+      canAccept: canAcceptTask(user, task),
+      canPostpone: await canEditTask(user, task),
+    });
+
+  return Promise.all(
+    staff.map(async (person) => {
+      const own = tasks.filter((task) => task.assigneeId === person.id);
+      const open = own.filter((task) => OPEN_STATUSES.includes(task.status));
+      const closed = own.filter((task) => !OPEN_STATUSES.includes(task.status));
+      return {
+        userId: person.id,
+        fullName: person.fullName,
+        position: person.position,
+        department: person.department?.name ?? null,
+        unfinished: await Promise.all(open.map(toRow)),
+        done: await Promise.all(closed.map(toRow)),
+        overdueCount: open.filter((task) => isTaskOverdue(task, now)).length,
+      };
+    }),
   );
 }
 

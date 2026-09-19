@@ -3,9 +3,10 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
 import { getSettings } from '@/lib/settings';
-import { isAdmin, isManager } from '@/lib/permissions';
-import { groupTasks, listTasks, taskInclude, withRowAbilities } from '@/lib/tasks';
+import { isAdmin, isChief, isDirector, isManager, subordinateIds } from '@/lib/permissions';
+import { groupTasks, listTasks, loadTeamTasks, taskInclude, withRowAbilities } from '@/lib/tasks';
 import TaskSection from '@/components/TaskSection';
+import TeamBoard from '@/components/TeamBoard';
 import { EmptyState, StatCard } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -20,9 +21,72 @@ export default async function DashboardPage({
   if (isAdmin(user)) redirect('/admin/users');
 
   const { scope } = await searchParams;
-  const teamView = scope === 'team' && isManager(user);
+  // Директор по умолчанию видит команду: его работа — люди, а не собственный список дел
+  const teamView = isManager(user) && (scope === 'team' || (!scope && isDirector(user)));
   const { timezone } = await getSettings();
   const now = new Date();
+
+  if (teamView) {
+    const staff = isChief(user)
+      ? await subordinateIds(user)
+      : (
+          await prisma.user.findMany({
+            where: {
+              isActive: true,
+              approvalStatus: 'APPROVED',
+              role: { in: ['CHIEF_ACCOUNTANT', 'ACCOUNTANT'] },
+            },
+            select: { id: true },
+          })
+        ).map((person) => person.id);
+
+    const groups = await loadTeamTasks(user, staff, timezone, now);
+    const totals = groups.reduce(
+      (acc, group) => ({
+        open: acc.open + group.unfinished.length,
+        overdue: acc.overdue + group.overdueCount,
+        done: acc.done + group.done.length,
+      }),
+      { open: 0, overdue: 0, done: 0 },
+    );
+
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900">
+              {isDirector(user) ? 'Задачи сотрудников' : 'Задачи отдела'}
+            </h1>
+            <p className="text-sm text-slate-500">
+              По сотрудникам: незакрытые задачи и выполненное за сегодня и вчера.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-lg border border-slate-300 bg-white p-0.5 text-sm">
+              <Link href="/dashboard?scope=mine" className="rounded-md px-3 py-1.5 text-slate-600">
+                Мои
+              </Link>
+              <Link href="/dashboard?scope=team" className="rounded-md bg-slate-900 px-3 py-1.5 text-white">
+                {isDirector(user) ? 'Вся компания' : 'Отдел'}
+              </Link>
+            </div>
+            <Link href="/tasks/new" className="btn-primary">
+              + Новая задача
+            </Link>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard label="Сотрудников" value={groups.length} />
+          <StatCard label="В работе" value={totals.open} />
+          <StatCard label="Просрочено" value={totals.overdue} tone={totals.overdue ? 'danger' : 'default'} />
+          <StatCard label="Выполнено" value={totals.done} tone="success" hint="сегодня и вчера" />
+        </div>
+
+        <TeamBoard groups={groups} />
+      </div>
+    );
+  }
 
   const tasks = await listTasks(user, { view: 'today', onlyMine: !teamView });
   const groups = groupTasks(tasks, now, timezone);
@@ -54,7 +118,7 @@ export default async function DashboardPage({
           {isManager(user) ? (
             <div className="flex rounded-lg border border-slate-300 bg-white p-0.5 text-sm">
               <Link
-                href="/dashboard"
+                href="/dashboard?scope=mine"
                 className={`rounded-md px-3 py-1.5 ${!teamView ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
               >
                 Мои

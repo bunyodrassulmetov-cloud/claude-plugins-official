@@ -53,6 +53,9 @@ export default function TaskForm({
   }
 
   const customerName = people.find((person) => person.id === Number(values.customerId))?.fullName;
+  const acceptorName = people.find((person) => person.id === Number(values.acceptorId))?.fullName;
+  // Если исполнитель и принимающий — один человек, приёмки по сути нет
+  const selfAccepted = Boolean(values.acceptorId) && values.acceptorId === values.assigneeId;
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -179,8 +182,11 @@ export default function TaskForm({
 
       {mode === 'create' && !detailed ? (
         <p className="text-xs text-slate-400">
-          Заказчик — {customerName ?? 'вы'}. Приёмка не требуется, задача закроется отметкой
-          исполнителя. Всё это можно изменить в подробностях.
+          Заказчик — {customerName ?? 'вы'}.{' '}
+          {!values.acceptorId || selfAccepted
+            ? 'Приёмка не требуется: задача закроется отметкой исполнителя.'
+            : `Результат принимает ${acceptorName ?? 'заказчик'} — задача закроется после подтверждения.`}{' '}
+          Всё это можно изменить в подробностях.
         </p>
       ) : null}
 
@@ -261,10 +267,10 @@ export default function TaskForm({
                 {people
                   .filter((person) => person.id !== Number(values.assigneeId))
                   .map((person) => (
-                    <label key={person.id} className="flex items-center gap-2 text-sm text-slate-700">
+                    <label key={person.id} className="flex min-h-10 items-center gap-2 text-sm text-slate-700">
                       <input
                         type="checkbox"
-                        className="h-4 w-4 rounded border-slate-300"
+                        className="h-5 w-5 rounded border-slate-300"
                         checked={values.coAssigneeIds.includes(person.id)}
                         onChange={(e) =>
                           set(

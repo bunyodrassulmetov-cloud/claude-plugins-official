@@ -55,7 +55,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       <footer className="mx-auto w-full max-w-6xl px-4 pb-8 text-xs text-slate-400 sm:px-6 lg:px-8">
         Task Manager · {config.companyName} ·{' '}
-        <Link className="underline" href="/notifications">
+        <Link className="inline-block py-2 underline" href="/notifications">
           уведомления
         </Link>
       </footer>
