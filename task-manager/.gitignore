@@ -7,3 +7,8 @@ uploads/*
 !uploads/.gitkeep
 *.tsbuildinfo
 next-env.d.ts
+
+# тесты
+test-results
+playwright-report
+coverage

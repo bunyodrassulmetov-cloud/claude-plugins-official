@@ -17,9 +17,13 @@ export type RecurrenceRule = {
 };
 
 function build(year: number, month: number, day: number, rule: RecurrenceRule, timezone: string) {
+  // Date.UTC нормализует выход за границы месяца: «37 сентября» станет 7 октября.
+  // Без этого недельное расписание в конце месяца давало несуществующую дату.
+  const normalized = new Date(Date.UTC(year, month, day));
+  const pad = (value: number) => String(value).padStart(2, '0');
   const stamp =
-    `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` +
-    ` ${String(rule.dueHour).padStart(2, '0')}:${String(rule.dueMinute).padStart(2, '0')}:00`;
+    `${normalized.getUTCFullYear()}-${pad(normalized.getUTCMonth() + 1)}-${pad(normalized.getUTCDate())}` +
+    ` ${pad(rule.dueHour)}:${pad(rule.dueMinute)}:00`;
   return fromZonedTime(stamp, timezone);
 }
 
