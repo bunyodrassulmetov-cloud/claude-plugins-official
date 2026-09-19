@@ -19,6 +19,7 @@ export const SETTING_KEYS = {
   dailyReportTime: 'daily_report_time',
   timezone: 'timezone',
   deadlineReminderHours: 'deadline_reminder_hours',
+  weekend: 'weekend_days',
 } as const;
 
 export { ALLOWED_EXTENSIONS, ALLOWED_MIME_TYPES } from './attachments';

@@ -131,12 +131,19 @@ export const departmentSchema = z.object({
   headId: z.coerce.number().int().positive().optional().nullable(),
 });
 
+export const holidaySchema = z.object({
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Дата в формате ГГГГ-ММ-ДД'),
+  name: z.string().trim().min(2, 'Укажите название').max(120),
+});
+
 export const settingsSchema = z.object({
   dailyReportTime: z
     .string()
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Формат времени — ЧЧ:ММ'),
   timezone: z.string().trim().min(3).max(64),
   deadlineReminderHours: z.coerce.number().int().min(1).max(168),
+  /** Номера выходных дней недели: 1 — понедельник, 7 — воскресенье */
+  weekend: z.array(z.coerce.number().int().min(1).max(7)).max(6).optional(),
 });
 
 /** Единый разбор тела запроса: возвращает данные либо текст ошибки. */

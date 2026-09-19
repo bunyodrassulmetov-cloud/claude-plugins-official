@@ -3,7 +3,8 @@ import type { Prisma, ReportPeriod } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { OPEN_STATUSES } from '@/lib/tasks';
 import { periodBounds } from '@/lib/dates';
-import { getSettings } from '@/lib/settings';
+import { getSettings, getWorkingCalendar } from '@/lib/settings';
+import { isWorkingDay } from '@/lib/calendar';
 import { notify } from '@/lib/notifications';
 import { sendTelegramMessage, telegramEnabled } from '@/lib/telegram';
 
@@ -184,8 +185,20 @@ export async function persistReport(params: {
  * Ежедневные отчёты: главбуху — по его отделу, директору — по всей компании.
  * Вызывается cron-джобом в конце рабочего дня.
  */
-export async function generateDailyReports(now = new Date(), periodType: ReportPeriod = 'DAILY') {
+export async function generateDailyReports(
+  now = new Date(),
+  periodType: ReportPeriod = 'DAILY',
+  options: { force?: boolean } = {},
+) {
   const { timezone } = await getSettings();
+
+  // В выходной и праздник сводка не формируется: она ничего не покажет, а уведомления придут
+  if (periodType === 'DAILY' && !options.force) {
+    const calendar = await getWorkingCalendar();
+    if (!isWorkingDay(now, calendar)) {
+      return { reports: 0, personalSummaries: 0, skipped: 'нерабочий день' as const };
+    }
+  }
   const { start, end } = periodBounds(periodType, now, timezone);
   const created: number[] = [];
 

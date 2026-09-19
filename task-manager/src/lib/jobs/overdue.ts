@@ -2,10 +2,9 @@ import 'server-only';
 import { prisma } from '@/lib/db';
 import { OPEN_STATUSES } from '@/lib/tasks';
 import { dayBounds } from '@/lib/dates';
-import { getSettings } from '@/lib/settings';
+import { getSettings, getWorkingCalendar } from '@/lib/settings';
+import { workingDaysBetween } from '@/lib/calendar';
 import { notify } from '@/lib/notifications';
-
-const DAY_MS = 86_400_000;
 
 /**
  * Ежедневный «перенос»: незакрытые задачи с истёкшим дедлайном помечаются
@@ -14,6 +13,7 @@ const DAY_MS = 86_400_000;
  */
 export async function markOverdueTasks(now = new Date()) {
   const { timezone } = await getSettings();
+  const calendar = await getWorkingCalendar();
   const { start: todayStart } = dayBounds(now, timezone);
 
   const overdueTasks = await prisma.task.findMany({
@@ -23,9 +23,12 @@ export async function markOverdueTasks(now = new Date()) {
 
   let marked = 0;
   for (const task of overdueTasks) {
-    const carryOverDays = Math.max(
-      0,
-      Math.floor((todayStart.getTime() - dayBounds(task.deadline, timezone).start.getTime()) / DAY_MS),
+    // Считаем в рабочих днях: иначе задача со сроком в пятницу к понедельнику
+    // выглядит просроченной на три дня, хотя прошёл один рабочий
+    const carryOverDays = workingDaysBetween(
+      dayBounds(task.deadline, timezone).start,
+      todayStart,
+      calendar,
     );
     await prisma.task.update({
       where: { id: task.id },

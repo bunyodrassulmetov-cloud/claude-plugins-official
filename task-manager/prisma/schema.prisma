@@ -342,6 +342,8 @@ model TaskTemplate {
   dueMinute  Int  @default(0)
   /// За сколько дней до срока создавать задачу, чтобы к ней успели приступить
   leadDays   Int  @default(0)
+  /// Срок выпал на выходной или праздник — перенести на ближайший рабочий день
+  skipNonWorking Boolean @default(true)
 
   isActive     Boolean   @default(true)
   /// Срок следующей задачи. Планировщик сравнивает с ним и сдвигает вперёд — так
@@ -390,6 +392,15 @@ model LoginAttempt {
   firstFailAt DateTime  @default(now())
   lockedUntil DateTime?
   updatedAt   DateTime  @updatedAt
+}
+
+/// Нерабочий день: праздник или перенос. Выходные дни недели задаются в настройках.
+/// Нужен, чтобы просрочка не копилась за выходные и вечерние сводки не приходили в праздник.
+model NonWorkingDay {
+  /// Дата в рабочем часовом поясе, формат ГГГГ-ММ-ДД
+  day       String   @id
+  name      String
+  createdAt DateTime @default(now())
 }
 
 /// Настройки приложения (время отчёта, таймзона, окно напоминаний).

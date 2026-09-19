@@ -1,6 +1,7 @@
 import 'server-only';
 import { prisma } from '@/lib/db';
-import { getSettings } from '@/lib/settings';
+import { getSettings, getWorkingCalendar } from '@/lib/settings';
+import { nextWorkingDay } from '@/lib/calendar';
 import { nextOccurrence } from '@/lib/recurrence';
 import { notify } from '@/lib/notifications';
 import { formatDateTime } from '@/lib/dates';
@@ -13,10 +14,13 @@ import { formatDateTime } from '@/lib/dates';
  */
 export async function runTaskTemplates(now = new Date()) {
   const { timezone } = await getSettings();
+  const calendar = await getWorkingCalendar();
   const templates = await prisma.taskTemplate.findMany({ where: { isActive: true } });
 
   let created = 0;
   for (const template of templates) {
+    // nextDeadline остаётся «по расписанию»: сдвиг на рабочий день применяется
+    // только к создаваемой задаче, иначе расписание уползало бы месяц за месяцем
     let deadline = template.nextDeadline;
     let lastCreated: Date | null = null;
 
@@ -30,6 +34,10 @@ export async function runTaskTemplates(now = new Date()) {
       });
       if (!assignee?.isActive) break; // исполнителя отключили — шаблон ждёт правки
 
+      const taskDeadline = template.skipNonWorking
+        ? nextWorkingDay(deadline, calendar)
+        : deadline;
+
       const task = await prisma.task.create({
         data: {
           title: template.title,
@@ -40,9 +48,9 @@ export async function runTaskTemplates(now = new Date()) {
           createdById: template.createdById,
           departmentId: assignee.departmentId,
           priority: template.priority,
-          deadline,
-          isOverdue: deadline < now,
-          overdueSince: deadline < now ? deadline : null,
+          deadline: taskDeadline,
+          isOverdue: taskDeadline < now,
+          overdueSince: taskDeadline < now ? taskDeadline : null,
           coAssignees: {
             create: template.coAssigneeIds
               .filter((id) => id !== template.assigneeId)
@@ -67,7 +75,7 @@ export async function runTaskTemplates(now = new Date()) {
         type: 'TASK_ASSIGNED',
         taskId: task.id,
         title: 'Повторяющаяся задача',
-        body: `«${template.title}» — срок ${formatDateTime(deadline, timezone)}.`,
+        body: `«${template.title}» — срок ${formatDateTime(taskDeadline, timezone)}.`,
       });
 
       created += 1;

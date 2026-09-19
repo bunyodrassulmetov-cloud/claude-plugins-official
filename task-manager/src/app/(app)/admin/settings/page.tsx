@@ -1,8 +1,10 @@
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
 import { canManageUsers } from '@/lib/permissions';
+import { prisma } from '@/lib/db';
 import { getSettings } from '@/lib/settings';
 import SettingsForm from '@/components/SettingsForm';
+import WorkingCalendarForm from '@/components/WorkingCalendarForm';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Настройки — Task Manager' };
@@ -11,6 +13,10 @@ export default async function AdminSettingsPage() {
   const user = await requireUser();
   if (!canManageUsers(user)) redirect('/dashboard');
   const settings = await getSettings();
+  const holidays = await prisma.nonWorkingDay.findMany({
+    select: { day: true, name: true },
+    orderBy: { day: 'asc' },
+  });
 
   return (
     <div className="space-y-5">
@@ -21,6 +27,21 @@ export default async function AdminSettingsPage() {
         </p>
       </div>
       <SettingsForm initial={settings} />
+
+      <div>
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
+          Рабочий календарь
+        </h2>
+        <WorkingCalendarForm
+          weekend={settings.weekend}
+          holidays={holidays}
+          settings={{
+            dailyReportTime: settings.dailyReportTime,
+            timezone: settings.timezone,
+            deadlineReminderHours: settings.deadlineReminderHours,
+          }}
+        />
+      </div>
       <div className="card space-y-3 p-5 text-sm text-slate-600">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Резервная копия</h2>
         <p>

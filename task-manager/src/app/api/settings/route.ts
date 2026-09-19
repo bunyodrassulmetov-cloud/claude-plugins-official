@@ -23,6 +23,7 @@ export async function PUT(request: NextRequest) {
     await setSetting(SETTING_KEYS.dailyReportTime, data.dailyReportTime);
     await setSetting(SETTING_KEYS.timezone, data.timezone);
     await setSetting(SETTING_KEYS.deadlineReminderHours, String(data.deadlineReminderHours));
+    if (data.weekend) await setSetting(SETTING_KEYS.weekend, data.weekend.join(','));
     return ok(await getSettings());
   });
 }
