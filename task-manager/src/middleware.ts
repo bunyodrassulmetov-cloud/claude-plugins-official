@@ -38,6 +38,7 @@ export const config = {
     '/templates/:path*',
     '/tasks/:path*',
     '/reports/:path*',
+    '/analytics/:path*',
     '/notifications/:path*',
     '/profile/:path*',
     '/admin/:path*',

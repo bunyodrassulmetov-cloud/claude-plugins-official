@@ -31,10 +31,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       : [
           { href: '/dashboard', label: 'Мой день' },
           { href: '/tasks', label: 'Задачи' },
-          { href: '/templates', label: 'Повторяющиеся' },
+          { href: '/templates', label: 'Шаблоны' },
           { href: '/company', label: 'Компания' },
         ]),
-    ...(isManager(user) ? [{ href: '/reports', label: 'Отчёты' }] : []),
+    ...(isAdmin(user) ? [] : [{ href: '/reports', label: 'Отчёты' }]),
+    ...(isManager(user) ? [{ href: '/analytics', label: 'Аналитика' }] : []),
     ...(isAdmin(user)
       ? [
           { href: '/admin/users', label: 'Сотрудники' },
