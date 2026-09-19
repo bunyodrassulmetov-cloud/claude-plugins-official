@@ -1,0 +1,38 @@
+name: Task Manager — резервная копия базы
+
+# Ежедневный дамп рабочей базы. Файл кладётся в артефакты запуска и хранится 90 дней.
+# Нужен секрет репозитория DATABASE_URL со строкой подключения (Settings → Secrets → Actions).
+on:
+  schedule:
+    - cron: '0 20 * * *' # 01:00 по Ташкенту
+  workflow_dispatch:
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Поставить клиент PostgreSQL 16
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client-16
+
+      - name: Снять дамп
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "Не задан секрет DATABASE_URL — копия не снята" >&2
+            exit 1
+          fi
+          mkdir -p dump
+          pg_dump --format=custom --no-owner --no-privileges \
+            --file "dump/taskmanager-$(date -u +%Y-%m-%d).dump" "$DATABASE_URL"
+          ls -lh dump
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: taskmanager-backup-${{ github.run_id }}
+          path: dump/
+          retention-days: 90

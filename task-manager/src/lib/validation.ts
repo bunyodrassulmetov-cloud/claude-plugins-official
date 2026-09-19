@@ -22,6 +22,21 @@ export const registerSchema = z.object({
   note: z.string().trim().max(300).optional().nullable(),
 });
 
+export const forgotSchema = z.object({
+  email: z.string().email('Некорректный email').toLowerCase(),
+});
+
+export const resetSchema = z.object({
+  token: z.string().min(32).max(200),
+  newPassword: z
+    .string()
+    .min(8, 'Пароль — минимум 8 символов')
+    .max(100)
+    .refine((value) => /[a-zA-Zа-яА-Я]/.test(value) && /\d/.test(value), {
+      message: 'Пароль должен содержать буквы и цифры',
+    }),
+});
+
 export const approvalSchema = z.object({
   approve: z.boolean(),
   role: roleEnum.optional(),

@@ -94,6 +94,7 @@ model User {
   manager      User?    @relation("Subordinates", fields: [managerId], references: [id], onDelete: SetNull)
   subordinates User[]   @relation("Subordinates")
   approvedUsers User[]  @relation("UserApprover")
+  resetTokens   PasswordResetToken[]
   isActive     Boolean  @default(true)
   approvalStatus ApprovalStatus @default(APPROVED)
   /// Кто и когда подтвердил доступ — для истории
@@ -365,6 +366,20 @@ model TelegramMessage {
 
   @@unique([chatId, messageId])
   @@index([chatId, createdAt])
+}
+
+/// Одноразовая ссылка для восстановления пароля.
+/// В базе лежит только хэш токена: утечка таблицы не даёт войти.
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 /// Счётчик неудачных входов: защита от перебора паролей.

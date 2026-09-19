@@ -12,6 +12,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "backup": "tsx scripts/backup.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -22,6 +23,7 @@
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",
+    "@sentry/nextjs": "^10.75.0",
     "bcryptjs": "^2.4.3",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",

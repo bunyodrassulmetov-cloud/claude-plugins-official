@@ -1,0 +1,40 @@
+name: Task Manager — проверки
+
+# Гоняем проверки только при изменениях самого приложения,
+# чтобы не запускать их на правках каталога плагинов.
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths: ['task-manager/**', '.github/workflows/task-manager-ci.yml']
+  pull_request:
+    paths: ['task-manager/**']
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: task-manager
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: task-manager/package-lock.json
+
+      - run: npm ci
+      - run: npx prisma generate
+
+      - name: Типы
+        run: npm run typecheck
+
+      - name: Юнит-тесты
+        run: npm run test
+
+      - name: Сборка
+        run: npm run build
+        env:
+          # Сборке база не нужна, но переменные должны существовать
+          DATABASE_URL: postgresql://user:pass@localhost:5432/db
+          JWT_SECRET: ci-secret-not-used-anywhere-else-1234567890

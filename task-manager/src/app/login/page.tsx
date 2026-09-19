@@ -22,8 +22,10 @@ export default function LoginPage() {
             Отправить заявку
           </Link>
         </p>
-        <p className="mt-2 text-center text-xs text-slate-400">
-          Забыли пароль — обратитесь к администратору.
+        <p className="mt-2 text-center text-sm text-slate-500">
+          <Link href="/forgot" className="underline">
+            Забыли пароль?
+          </Link>
         </p>
       </div>
     </main>

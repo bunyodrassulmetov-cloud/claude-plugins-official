@@ -27,6 +27,25 @@ test('закрытые разделы не открываются без вхо�
   await page.waitForURL(/login/);
 });
 
+test('восстановление пароля: форма доступна и честно отвечает без настроенной почты', async ({ page }) => {
+  await page.context().clearCookies();
+  await page.goto('/login');
+  await page.getByRole('link', { name: 'Забыли пароль?' }).click();
+  await page.waitForURL(/forgot/);
+  await page.fill('#f-email', 'olimboy@company.ru');
+  await page.getByRole('button', { name: 'Прислать ссылку' }).click();
+  // Либо письмо ушло, либо приложение сообщает, что почта не настроена — оба ответа корректны
+  await expect(
+    page.locator('text=/Письмо отправлено|Отправка писем не настроена/'),
+  ).toBeVisible({ timeout: 10_000 });
+});
+
+test('ссылка смены пароля без токена не работает', async ({ page }) => {
+  await page.context().clearCookies();
+  await page.goto('/reset');
+  await expect(page.getByText('Ссылка неполная')).toBeVisible();
+});
+
 test('страница заявки на доступ открыта всем', async ({ page }) => {
   await page.context().clearCookies();
   await page.goto('/register');

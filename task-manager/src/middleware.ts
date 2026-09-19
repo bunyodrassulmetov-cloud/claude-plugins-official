@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
   const session = token ? await verifySession(token) : null;
   const { pathname } = request.nextUrl;
 
-  if (pathname === '/login' || pathname === '/register') {
+  if (['/login', '/register', '/forgot', '/reset'].includes(pathname)) {
     if (!session) return NextResponse.next();
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
@@ -43,6 +43,8 @@ export const config = {
     '/admin/:path*',
     '/login',
     '/register',
+    '/forgot',
+    '/reset',
     '/api/tasks/:path*',
     '/api/reports/:path*',
     '/api/users/:path*',
@@ -54,5 +56,6 @@ export const config = {
     '/api/telegram/link',
     '/api/auth/password',
     '/api/settings',
+    '/api/admin/:path*',
   ],
 };

@@ -21,6 +21,21 @@ export default async function AdminSettingsPage() {
         </p>
       </div>
       <SettingsForm initial={settings} />
+      <div className="card space-y-3 p-5 text-sm text-slate-600">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Резервная копия</h2>
+        <p>
+          Выгрузка всех данных одним файлом: сотрудники, задачи, чек-листы, заметки, шаблоны и
+          отчёты. Пароли и содержимое вложений в неё не попадают.
+        </p>
+        <a className="btn-secondary inline-flex" href="/api/admin/backup">
+          Скачать выгрузку
+        </a>
+        <p className="text-xs text-slate-400">
+          Это запасной вариант на каждый день. Полная копия базы, пригодная для восстановления,
+          снимается командой <code>npm run backup</code> или ночным заданием в GitHub Actions.
+        </p>
+      </div>
+
       <div className="card space-y-2 p-5 text-sm text-slate-600">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Регламент планировщика</h2>
         <ul className="list-inside list-disc space-y-1">
