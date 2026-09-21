@@ -8,6 +8,7 @@ import type { SessionUser } from '@/lib/auth';
 import {
   assignableUserIds,
   canAcceptTask,
+  canCancelTask,
   canCommentTask,
   canDeleteTask,
   canEditTask,
@@ -53,9 +54,9 @@ beforeEach(() => {
 });
 
 describe('видимость задач', () => {
-  it('директор видит всё, администратор — ничего', async () => {
+  it('директор и администратор видят все задачи', async () => {
     expect(await visibleTasksFilter(director)).toEqual({});
-    expect(await visibleTasksFilter(admin)).toEqual({ id: -1 });
+    expect(await visibleTasksFilter(admin)).toEqual({});
   });
 
   it('сотрудник видит только задачи со своим участием', async () => {
@@ -75,8 +76,8 @@ describe('видимость задач', () => {
     ).toBe(false);
   });
 
-  it('администратор не видит чужие задачи', async () => {
-    expect(await canViewTask(admin, task())).toBe(false);
+  it('администратор видит чужие задачи: он обслуживает систему', async () => {
+    expect(await canViewTask(admin, task())).toBe(true);
   });
 });
 
@@ -126,7 +127,16 @@ describe('правка и удаление', () => {
   it('заметки доступны участникам, но не посторонним', async () => {
     expect(await canCommentTask(worker, task())).toBe(true);
     expect(await canCommentTask(outsider, task())).toBe(false);
-    expect(await canCommentTask(admin, task())).toBe(false);
+  });
+
+  it('администратор правит и удаляет любую задачу', async () => {
+    expect(await canEditTask(admin, task({ createdById: 3 }))).toBe(true);
+    expect(await canDeleteTask(admin, task({ createdById: 3 }))).toBe(true);
+    expect(await canCancelTask(admin, task())).toBe(true);
+  });
+
+  it('но не отмечает выполнение за сотрудника', async () => {
+    expect(await canSubmitTask(admin, task())).toBe(false);
   });
 });
 
@@ -134,7 +144,7 @@ describe('назначение и администрирование', () => {
   it('задачу можно поставить любому — отделы работают друг с другом', async () => {
     expect(await assignableUserIds(worker)).toBe('ALL');
     expect(await assignableUserIds(director)).toBe('ALL');
-    expect(await assignableUserIds(admin)).toEqual([]);
+    expect(await assignableUserIds(admin)).toBe('ALL');
   });
 
   it('учётные записи ведёт только администратор', () => {

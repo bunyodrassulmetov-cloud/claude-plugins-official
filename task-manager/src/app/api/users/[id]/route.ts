@@ -37,14 +37,60 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   });
 }
 
-/** Пользователей не удаляем: на них ссылаются задачи и история. Только деактивация. */
-export async function DELETE(_request: NextRequest, { params }: Params) {
+/**
+ * По умолчанию учётная запись отключается: на сотрудника ссылаются задачи и история.
+ * ?mode=delete удаляет запись насовсем — но только если следов работы не осталось,
+ * иначе задачи лишились бы исполнителя и заказчика.
+ */
+export async function DELETE(request: NextRequest, { params }: Params) {
   return handle(async () => {
     const user = await requireUser();
     if (!canManageUsers(user)) throw new HttpError(403, 'Недостаточно прав');
+
     const { id } = await params;
-    if (parseId(id) === user.id) throw new HttpError(400, 'Нельзя отключить собственную учётную запись');
-    await prisma.user.update({ where: { id: parseId(id) }, data: { isActive: false } });
-    return ok({ success: true });
+    const targetId = parseId(id);
+    if (targetId === user.id) throw new HttpError(400, 'Нельзя удалить собственную учётную запись');
+
+    const target = await prisma.user.findUnique({ where: { id: targetId } });
+    if (!target) throw new HttpError(404, 'Пользователь не найден');
+
+    if (request.nextUrl.searchParams.get('mode') !== 'delete') {
+      await prisma.user.update({ where: { id: targetId }, data: { isActive: false } });
+      return ok({ success: true, mode: 'disabled' });
+    }
+
+    if (target.role === 'ADMIN') {
+      const admins = await prisma.user.count({ where: { role: 'ADMIN', isActive: true } });
+      if (admins <= 1) throw new HttpError(409, 'Это последний администратор — удалять некому будет');
+    }
+
+    const [assigned, ordered, created, accepted, notes, templates] = await Promise.all([
+      prisma.task.count({ where: { assigneeId: targetId } }),
+      prisma.task.count({ where: { customerId: targetId } }),
+      prisma.task.count({ where: { createdById: targetId } }),
+      prisma.task.count({ where: { acceptorId: targetId } }),
+      prisma.taskNote.count({ where: { authorId: targetId } }),
+      prisma.taskTemplate.count({ where: { assigneeId: targetId } }),
+    ]);
+    const links = assigned + ordered + created + accepted + notes + templates;
+
+    if (links > 0) {
+      const parts = [
+        assigned && `задач как исполнитель: ${assigned}`,
+        ordered && `как заказчик: ${ordered}`,
+        created && `создано задач: ${created}`,
+        accepted && `принимает: ${accepted}`,
+        notes && `заметок: ${notes}`,
+        templates && `шаблонов: ${templates}`,
+      ].filter(Boolean);
+      throw new HttpError(
+        409,
+        `С сотрудником связана работа (${parts.join(', ')}). ` +
+          'Удаление стёрло бы историю задач — отключите учётную запись вместо удаления.',
+      );
+    }
+
+    await prisma.user.delete({ where: { id: targetId } });
+    return ok({ success: true, mode: 'deleted' });
   });
 }

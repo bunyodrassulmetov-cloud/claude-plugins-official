@@ -18,7 +18,8 @@ export default async function DashboardPage({
   searchParams: Promise<{ scope?: string }>;
 }) {
   const user = await requireUser();
-  if (isAdmin(user)) redirect('/admin/users');
+  // Своих задач у администратора нет — ему полезнее общий список
+  if (isAdmin(user)) redirect('/tasks');
 
   const { scope } = await searchParams;
   // Директор по умолчанию видит команду: его работа — люди, а не собственный список дел

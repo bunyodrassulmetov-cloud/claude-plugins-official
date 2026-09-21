@@ -6,6 +6,7 @@ import { prisma } from '@/lib/db';
 import { unreadCount } from '@/lib/notifications';
 import { isManager, isAdmin, ROLE_LABELS } from '@/lib/permissions';
 import NavBar from '@/components/NavBar';
+import LiveRefresh from '@/components/LiveRefresh';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,14 +27,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         }),
   ]);
   const links = [
-    ...(isAdmin(user)
-      ? []
-      : [
-          { href: '/dashboard', label: 'Мой день' },
-          { href: '/tasks', label: 'Задачи' },
-          { href: '/templates', label: 'Шаблоны' },
-          { href: '/company', label: 'Компания' },
-        ]),
+    ...(isAdmin(user) ? [] : [{ href: '/dashboard', label: 'Мой день' }]),
+    { href: '/tasks', label: 'Задачи' },
+    { href: '/templates', label: 'Шаблоны' },
+    { href: '/company', label: 'Компания' },
     ...(isAdmin(user) ? [] : [{ href: '/reports', label: 'Отчёты' }]),
     ...(isManager(user) ? [{ href: '/analytics', label: 'Аналитика' }] : []),
     ...(isAdmin(user)
@@ -47,6 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen">
+      <LiveRefresh />
       <NavBar
         links={links}
         unread={unread}

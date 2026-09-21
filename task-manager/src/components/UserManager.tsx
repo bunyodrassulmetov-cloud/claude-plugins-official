@@ -34,6 +34,7 @@ export default function UserManager({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [passwordFor, setPasswordFor] = useState<UserRow | null>(null);
+  const [toDelete, setToDelete] = useState<UserRow | null>(null);
   const [pending, setPending] = useState(false);
   const [form, setForm] = useState({
     email: '',
@@ -79,6 +80,17 @@ export default function UserManager({
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
       setError(payload.error ?? 'Не удалось сохранить изменения');
+      return;
+    }
+    router.refresh();
+  }
+
+  async function removeUser(id: number) {
+    setError(null);
+    const response = await fetch(`/api/users/${id}?mode=delete`, { method: 'DELETE' });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      setError(payload.error ?? 'Не удалось удалить сотрудника');
       return;
     }
     router.refresh();
@@ -210,10 +222,16 @@ export default function UserManager({
                   </button>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <button type="button" className="rounded px-3 py-2 text-xs text-slate-500 hover:bg-slate-100"
-                    onClick={() => setPasswordFor(user)}>
-                    сменить пароль
-                  </button>
+                  <div className="flex justify-end gap-1">
+                    <button type="button" className="rounded px-3 py-2 text-xs text-slate-500 hover:bg-slate-100"
+                      onClick={() => setPasswordFor(user)}>
+                      сменить пароль
+                    </button>
+                    <button type="button" className="rounded px-3 py-2 text-xs text-red-500 hover:bg-red-50"
+                      onClick={() => setToDelete(user)}>
+                      удалить
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -234,8 +252,29 @@ export default function UserManager({
         }}
       />
 
+      <Dialog
+        open={toDelete !== null}
+        title="Удалить сотрудника?"
+        description={
+          toDelete
+            ? `${toDelete.fullName} будет удалён насовсем. Если на нём есть задачи или заметки, ` +
+              'удаление не выполнится — тогда переключите учётную запись в «отключён».'
+            : undefined
+        }
+        confirmLabel="Удалить"
+        tone="danger"
+        onCancel={() => setToDelete(null)}
+        onConfirm={async () => {
+          const target = toDelete;
+          setToDelete(null);
+          if (target) await removeUser(target.id);
+        }}
+      />
+
       <p className="text-xs text-slate-400">
-        Сотрудников не удаляем — на них ссылаются задачи и история. Уволенного переводите в «отключён».
+        Уволенного обычно достаточно перевести в «отключён»: он перестаёт входить, а история его
+        задач остаётся. Полное удаление возможно только для учётной записи без единой задачи и
+        заметки — например, заведённой по ошибке.
       </p>
     </div>
   );

@@ -4,6 +4,11 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Dialog from './Dialog';
 
+/**
+ * Подключение Telegram. На телефоне главное — ссылка вида t.me/бот?start=КОД:
+ * по ней Telegram открывает бота и сам отправляет команду, вручную набирать код
+ * не нужно. Код рядом остаётся для случая, когда бота открывают на другом устройстве.
+ */
 export default function TelegramLink({
   connected,
   botName,
@@ -14,8 +19,12 @@ export default function TelegramLink({
   const router = useRouter();
   const [code, setCode] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+
+  const bot = botName?.replace('@', '').trim() || null;
+  const deepLink = bot && code ? `https://t.me/${bot}?start=${code}` : null;
 
   async function requestCode() {
     setPending(true);
@@ -30,6 +39,17 @@ export default function TelegramLink({
     setCode(payload.code);
   }
 
+  async function copyCode() {
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(`/start ${code}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError('Скопируйте команду вручную');
+    }
+  }
+
   async function disconnect() {
     await fetch('/api/telegram/link', { method: 'DELETE' });
     setCode(null);
@@ -40,6 +60,9 @@ export default function TelegramLink({
     return (
       <div className="card max-w-md space-y-3 p-5">
         <p className="text-sm text-emerald-700">Telegram подключён — уведомления приходят в чат.</p>
+        <p className="text-xs text-slate-500">
+          Ответьте на сообщение бота о задаче, чтобы добавить к ней заметку.
+        </p>
         <button type="button" className="btn-danger" onClick={() => setConfirming(true)}>
           Отключить
         </button>
@@ -62,37 +85,50 @@ export default function TelegramLink({
   return (
     <div className="card max-w-md space-y-3 p-5">
       <p className="text-sm text-slate-600">
-        Подключите Telegram, чтобы новые задачи и напоминания о сроках приходили в чат, а не только
-        в приложение.
+        Новые задачи, напоминания о сроках и итоги дня будут приходить в Telegram.
       </p>
 
-      {code ? (
-        <ol className="list-inside list-decimal space-y-2 text-sm text-slate-700">
-          <li>
-            Откройте бота{' '}
-            {botName ? (
-              <a
-                className="font-medium underline"
-                href={`https://t.me/${botName.replace('@', '')}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {botName}
-              </a>
-            ) : (
-              'вашей компании в Telegram'
-            )}
-          </li>
-          <li>
-            Отправьте сообщение:
-            <code className="ml-2 rounded bg-slate-100 px-2 py-1 font-mono text-sm">/start {code}</code>
-          </li>
-          <li>Бот ответит подтверждением — код одноразовый.</li>
-        </ol>
-      ) : (
-        <button type="button" className="btn-primary" onClick={requestCode} disabled={pending}>
-          {pending ? 'Готовлю код…' : 'Получить код привязки'}
+      {!code ? (
+        <button type="button" className="btn-primary w-full sm:w-auto" onClick={requestCode} disabled={pending}>
+          {pending ? 'Готовлю…' : 'Подключить Telegram'}
         </button>
+      ) : (
+        <div className="space-y-3">
+          {deepLink ? (
+            <>
+              <a className="btn-primary w-full" href={deepLink} target="_blank" rel="noreferrer">
+                Открыть бота и подключить
+              </a>
+              <p className="text-xs text-slate-500">
+                Откроется чат с ботом — нажмите в нём «Запустить» (Start). Больше ничего вводить
+                не нужно.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-amber-700">
+              Имя бота не настроено. Откройте бота вашей компании в Telegram и отправьте команду
+              ниже.
+            </p>
+          )}
+
+          <div className="rounded-lg bg-slate-50 p-3">
+            <p className="mb-1 text-xs text-slate-500">
+              Если открываете бота на другом устройстве — отправьте ему команду:
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="select-all rounded bg-white px-2 py-1 font-mono text-sm text-slate-800">
+                /start {code}
+              </code>
+              <button type="button" className="btn-secondary" onClick={copyCode}>
+                {copied ? 'Скопировано' : 'Копировать'}
+              </button>
+            </div>
+          </div>
+
+          <button type="button" className="text-sm text-slate-500 underline" onClick={requestCode}>
+            Получить новый код
+          </button>
+        </div>
       )}
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}

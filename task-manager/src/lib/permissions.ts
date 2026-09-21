@@ -57,14 +57,14 @@ export async function subordinateIds(user: SessionUser): Promise<number[]> {
  * всё равно видит задачу в своём отделе и в отчёте.
  */
 export async function assignableUserIds(user: SessionUser): Promise<number[] | 'ALL'> {
-  if (isAdmin(user)) return [];
   return 'ALL';
 }
 
 /** Prisma-фильтр «какие задачи видит этот пользователь». */
 export async function visibleTasksFilter(user: SessionUser): Promise<Prisma.TaskWhereInput> {
-  if (isDirector(user)) return {};
-  if (isAdmin(user)) return { id: -1 }; // администратор работает только с учётными записями
+  // Администратор обслуживает систему: ему нужен доступ ко всем задачам,
+  // чтобы исправлять и убирать ошибочные записи
+  if (isDirector(user) || isAdmin(user)) return {};
   if (isChief(user)) {
     const ids = [user.id, ...(await subordinateIds(user))];
     return {
@@ -116,14 +116,13 @@ function isParticipant(user: SessionUser, task: TaskLike) {
 }
 
 export async function canViewTask(user: SessionUser, task: TaskLike) {
-  if (isDirector(user)) return true;
-  if (isAdmin(user)) return false;
+  if (isDirector(user) || isAdmin(user)) return true;
   return isParticipant(user, task) || (await inScope(user, task));
 }
 
 /** Правка полей задачи (название, описание, дедлайн, приоритет, участники). */
 export async function canEditTask(user: SessionUser, task: TaskLike) {
-  if (isAdmin(user)) return false;
+  if (isAdmin(user)) return true;
   if (isDirector(user)) return task.createdById === user.id; // директор правит только созданное им
   if (isChief(user)) return (await inScope(user, task)) || isParticipant(user, task);
   // Рядовой сотрудник правит задачу, если он исполнитель, со-исполнитель или её автор
@@ -132,8 +131,7 @@ export async function canEditTask(user: SessionUser, task: TaskLike) {
 
 /** Заметки и вложения — любой участник задачи (и руководитель в своей зоне). */
 export async function canCommentTask(user: SessionUser, task: TaskLike) {
-  if (isAdmin(user)) return false;
-  if (isDirector(user)) return true;
+  if (isAdmin(user) || isDirector(user)) return true;
   return isParticipant(user, task) || (await inScope(user, task));
 }
 
@@ -151,14 +149,16 @@ export function canAcceptTask(user: SessionUser, task: TaskLike) {
 }
 
 export async function canCancelTask(user: SessionUser, task: TaskLike) {
-  if (isAdmin(user)) return false;
+  if (isAdmin(user)) return true;
   if (isDirector(user)) return task.createdById === user.id;
   if (isChief(user)) return (await inScope(user, task)) || isParticipant(user, task);
   return task.createdById === user.id && task.assigneeId === user.id;
 }
 
 export async function canDeleteTask(user: SessionUser, task: TaskLike) {
-  // Полное удаление — только автор-руководитель: история задач ценнее, обычно нужна отмена.
+  // Полное удаление — автор-руководитель или администратор:
+  // история задач ценнее, обычно достаточно отмены.
+  if (isAdmin(user)) return true;
   if (isDirector(user)) return task.createdById === user.id;
   if (isChief(user)) return task.createdById === user.id;
   return false;

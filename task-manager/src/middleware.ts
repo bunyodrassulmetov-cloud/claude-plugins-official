@@ -57,6 +57,7 @@ export const config = {
     '/api/telegram/link',
     '/api/auth/password',
     '/api/settings',
+    '/api/pulse',
     '/api/admin/:path*',
   ],
 };

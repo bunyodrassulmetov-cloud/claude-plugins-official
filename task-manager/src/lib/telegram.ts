@@ -17,6 +17,24 @@ export function telegramBotName() {
   return process.env.TELEGRAM_BOT_NAME ?? null;
 }
 
+// Имя бота меняется крайне редко — держим в памяти процесса
+let cachedUsername: string | null | undefined;
+
+/**
+ * Имя бота для ссылки-приглашения. Берётся из настройки, а если её не задали —
+ * спрашивается у самого Telegram, чтобы привязка работала и без лишней переменной.
+ */
+export async function getBotUsername(): Promise<string | null> {
+  const configured = process.env.TELEGRAM_BOT_NAME?.replace('@', '').trim();
+  if (configured) return configured;
+  if (!telegramEnabled()) return null;
+  if (cachedUsername !== undefined) return cachedUsername;
+
+  const me = (await callTelegram('getMe', {})) as { result?: { username?: string } } | null;
+  cachedUsername = me?.result?.username ?? null;
+  return cachedUsername;
+}
+
 async function callTelegram(method: string, payload: unknown) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return null;

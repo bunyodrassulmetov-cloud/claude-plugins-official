@@ -1,7 +1,5 @@
-import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
-import { isAdmin } from '@/lib/permissions';
 import { getSettings } from '@/lib/settings';
 import { describeRule } from '@/lib/recurrence';
 import { visibleTemplatesFilter } from '@/app/api/templates/route';
@@ -12,7 +10,6 @@ export const metadata = { title: 'Повторяющиеся задачи — Ta
 
 export default async function TemplatesPage() {
   const user = await requireUser();
-  if (isAdmin(user)) redirect('/admin/users');
 
   const { timezone } = await getSettings();
   const [templates, people] = await Promise.all([

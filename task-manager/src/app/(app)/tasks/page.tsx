@@ -1,9 +1,8 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
 import { getSettings } from '@/lib/settings';
-import { assignableUserIds, isAdmin, isManager } from '@/lib/permissions';
+import { assignableUserIds, isManager } from '@/lib/permissions';
 import { groupTasks, listTasks, withRowAbilities, type TaskFilters as Filters } from '@/lib/tasks';
 import TaskFilters from '@/components/TaskFilters';
 import TaskSection from '@/components/TaskSection';
@@ -16,7 +15,6 @@ type SearchParams = Record<string, string | undefined>;
 
 export default async function TasksPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const user = await requireUser();
-  if (isAdmin(user)) redirect('/admin/users');
 
   const params = await searchParams;
   const { timezone } = await getSettings();

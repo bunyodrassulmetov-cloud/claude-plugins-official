@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
-import { telegramBotName, telegramEnabled } from '@/lib/telegram';
+import { getBotUsername, telegramEnabled } from '@/lib/telegram';
 import { ROLE_LABELS } from '@/lib/permissions';
 import PasswordChangeForm from '@/components/PasswordChangeForm';
 import TelegramLink from '@/components/TelegramLink';
@@ -14,6 +14,7 @@ export default async function ProfilePage() {
     where: { id: user.id },
     select: { telegramChatId: true },
   });
+  const botName = telegramEnabled() ? await getBotUsername() : null;
 
   return (
     <div className="space-y-5">
@@ -30,7 +31,7 @@ export default async function ProfilePage() {
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
             Уведомления в Telegram
           </h2>
-          <TelegramLink connected={Boolean(account.telegramChatId)} botName={telegramBotName()} />
+          <TelegramLink connected={Boolean(account.telegramChatId)} botName={botName} />
         </div>
       ) : null}
 

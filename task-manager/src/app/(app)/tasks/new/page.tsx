@@ -1,7 +1,6 @@
-import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
-import { assignableUserIds, isAdmin } from '@/lib/permissions';
+import { assignableUserIds } from '@/lib/permissions';
 import TaskForm from '@/components/TaskForm';
 import { toInputValue } from '@/lib/dates';
 import { getSettings } from '@/lib/settings';
@@ -11,7 +10,6 @@ export const metadata = { title: 'Новая задача — Task Manager' };
 
 export default async function NewTaskPage() {
   const user = await requireUser();
-  if (isAdmin(user)) redirect('/admin/users');
 
   const allowed = await assignableUserIds(user);
   const people = await prisma.user.findMany({
