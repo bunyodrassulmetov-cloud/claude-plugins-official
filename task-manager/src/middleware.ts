@@ -55,6 +55,7 @@ export const config = {
     '/api/checklist/:path*',
     '/api/templates/:path*',
     '/api/telegram/link',
+    '/api/telegram/attach',
     '/api/auth/password',
     '/api/settings',
     '/api/pulse',

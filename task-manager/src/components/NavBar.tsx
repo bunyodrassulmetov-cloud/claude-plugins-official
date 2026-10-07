@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type NavLink = { href: string; label: string };
 
@@ -20,6 +20,14 @@ export default function NavBar({
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // Внутри Telegram выход никуда не ведёт: окно закрывается, а войти заново
+  // приложение может само — поэтому кнопку там не показываем
+  const [insideTelegram, setInsideTelegram] = useState(false);
+
+  useEffect(() => {
+    const app = (window as { Telegram?: { WebApp?: { initData?: string } } }).Telegram?.WebApp;
+    setInsideTelegram(Boolean(app?.initData));
+  }, []);
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -79,9 +87,11 @@ export default function NavBar({
               {user.department ? ` · ${user.department}` : ''}
             </p>
           </Link>
-          <button className="btn-secondary" onClick={logout} type="button">
-            Выйти
-          </button>
+          {!insideTelegram ? (
+            <button className="btn-secondary" onClick={logout} type="button">
+              Выйти
+            </button>
+          ) : null}
           <button
             className="btn-secondary md:hidden"
             onClick={() => setOpen((v) => !v)}

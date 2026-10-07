@@ -47,8 +47,29 @@ test('задача проходит путь от постановки до пр
 });
 
 test('чужая задача недоступна', async ({ page }) => {
+  // Создаём задачу между двумя другими людьми, чтобы проверяющий точно не был её участником
+  await signIn(page, ACCOUNTS.chief);
+  const people = await (await page.request.get('/api/users?assignable=1')).json();
+  const find = (part: string) =>
+    people.find((person: { fullName: string }) => person.fullName.includes(part));
+  const assignee = find('Камолхон');
+  const customer = find('Самандар');
+  const created = await page.request.post('/api/tasks', {
+    data: {
+      title: `Чужая задача ${Date.now()}`,
+      assigneeId: assignee.id,
+      customerId: customer.id,
+      acceptorId: customer.id,
+      priority: 'LOW',
+      deadline: new Date(Date.now() + 86_400_000).toISOString(),
+    },
+  });
+  expect(created.ok()).toBe(true);
+  const taskId = (await created.json()).id;
+
+  await page.getByRole('button', { name: 'Выйти' }).click();
   await signIn(page, ACCOUNTS.worker);
-  const response = await page.request.get('/api/tasks/1');
+  const response = await page.request.get(`/api/tasks/${taskId}`);
   expect([403, 404]).toContain(response.status());
 });
 

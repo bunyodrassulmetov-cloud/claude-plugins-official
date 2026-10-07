@@ -7,14 +7,16 @@
  */
 const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
-  { key: 'X-Frame-Options', value: 'DENY' },
+  // X-Frame-Options здесь нет намеренно: он умеет только «всем нельзя» и перекрыл бы
+  // мини-приложение Telegram. Ограничение задаётся через frame-ancestors ниже — оно точнее.
   { key: 'Referrer-Policy', value: 'same-origin' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
   {
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      // telegram.org — библиотека мини-приложения
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
@@ -22,7 +24,8 @@ const securityHeaders = [
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
-      "frame-ancestors 'none'",
+      // Telegram открывает мини-приложение во фрейме на вебе и в десктоп-клиенте
+      "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org",
     ].join('; '),
   },
 ];

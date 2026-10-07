@@ -370,13 +370,14 @@ Telegram, поэтому привязка работает и без неё.
 prisma/schema.prisma      схема БД и миграции
 prisma/seed.ts            демо-данные
 worker/cron.ts            планировщик
-src/lib/                  auth, permissions, tasks, storage, settings, telegram, recurrence, jobs/
+src/lib/                  auth, permissions, tasks, storage, settings, telegram,
+                          telegram-initdata, recurrence, analytics, calendar, jobs/
 src/app/api/              REST: auth, tasks, attachments, reports, users, departments, cron
 src/app/(app)/            интерфейс: dashboard, tasks, reports, notifications, admin
 src/components/           формы, карточки задач, таблицы
 ```
 
-## 13. Аналитика
+## 14. Аналитика
 
 Раздел «Аналитика» (директор — по компании, главбух — по своему отделу) показывает
 выполненное **в срок** и **с опозданием** по неделям и по сотрудникам за 8 недель, квартал
@@ -387,7 +388,7 @@ src/components/           формы, карточки задач, таблиц�
 Сводку за период можно выгрузить в `.xlsx` — с шапкой, ширинами колонок и выделением
 просрочек, готовую к отправке руководству.
 
-## 14. Проверка
+## 15. Проверка
 
 ```bash
 npm run typecheck   # tsc --noEmit

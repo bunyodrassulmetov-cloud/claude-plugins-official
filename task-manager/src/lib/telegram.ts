@@ -57,11 +57,33 @@ async function callTelegram(method: string, payload: unknown) {
   }
 }
 
-export async function sendTelegramMessage(chatId: string, text: string) {
+/**
+ * Кнопка под сообщением, открывающая мини-приложение сразу на нужной задаче.
+ * Включается только при заданном TELEGRAM_MINI_APP_URL: если адрес мини-приложения
+ * не прописан у бота, Telegram отклонил бы такое сообщение целиком — и уведомление
+ * просто не дошло бы.
+ */
+function taskButton(taskId?: number | null) {
+  const base = process.env.TELEGRAM_MINI_APP_URL;
+  if (!base || !taskId) return undefined;
+  return {
+    inline_keyboard: [
+      [
+        {
+          text: 'Открыть задачу',
+          web_app: { url: `${base.replace(/\/$/, '')}/tma?next=/tasks/${taskId}` },
+        },
+      ],
+    ],
+  };
+}
+
+export async function sendTelegramMessage(chatId: string, text: string, taskId?: number | null) {
   return callTelegram('sendMessage', {
     chat_id: chatId,
     text,
     disable_web_page_preview: true,
+    reply_markup: taskButton(taskId),
   });
 }
 
@@ -85,7 +107,7 @@ export async function sendTelegramNotifications(
       .map(async (item) => {
         const chatId = chats.get(item.userId)!;
         const text = item.body ? `${item.title}\n\n${item.body}` : item.title;
-        const response = (await sendTelegramMessage(chatId, text)) as
+        const response = (await sendTelegramMessage(chatId, text, item.taskId)) as
           | { result?: { message_id?: number } }
           | null;
 
